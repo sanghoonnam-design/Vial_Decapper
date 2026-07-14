@@ -1,0 +1,36 @@
+# STM32CubeIDE / Eclipse
+# .cproject
+# .project
+# .settings/
+# *.launch
+
+# VSCode
+.vscode/
+
+# Build output
+Debug/
+Release/
+build/
+
+# Compiled object files
+*.o
+*.d
+*.su
+
+# Compiled binary
+*.elf
+*.bin
+*.hex
+*.map
+*.lst
+
+# Libraries
+*.a
+*.lib
+
+# Log files
+*.log
+
+# OS
+.DS_Store
+Thumbs.db

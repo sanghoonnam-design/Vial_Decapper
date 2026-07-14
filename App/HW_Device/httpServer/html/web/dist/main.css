@@ -1,0 +1,221 @@
+/* ===== base.css ===== */
+html, body {
+  margin: 0;
+  padding: 0;
+}
+body {
+  background: #f4f6f8;
+  font-family: Arial, sans-serif;
+  padding: 20px;
+  color: #222;
+}
+label {
+  font-weight: bold;
+  margin-right: 4px;
+}
+h2 {
+  margin-top: 0;
+}
+
+/* ===== layout.css ===== */
+.container {
+  max-width: 900px;
+  margin: auto;
+  background: #fff;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+.section {
+  display: flex;
+  align-items: flex-start;
+  border: 1px solid #ddd;
+  padding: 12px;
+  margin-bottom: 12px;
+  border-radius: 6px;
+}
+
+.statusSection {
+  align-items: center;
+}
+
+.actionSection {
+  flex-wrap: wrap;
+}
+
+.networkSection {
+  flex-direction: column;
+}
+
+.fileSection {
+  flex-direction: column;
+}
+
+.logSection {
+  flex-direction: column;
+}
+
+.rightArea {
+  margin-left: auto;
+}
+
+.network-settings {
+  display: flex;
+  flex-direction: column;
+}
+
+.network-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.network-row label {
+  width: 140px;
+}
+
+.btnRow {
+  display: flex;
+  gap: 8px;
+}
+
+/* ===== components.css ===== */
+button {
+  padding: 6px 14px;
+  border: none;
+  border-radius: 6px;
+  background: #2f80ed;
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.05s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.actionSection > button {
+  margin-right: 4px;
+  margin-bottom: 8px;
+}
+button:hover {
+  background: #1f6fd6;
+}
+button:active {
+  background: #1554a3;
+  transform: translateY(1px);
+}
+button:disabled {
+  background: #aaa;
+  cursor: not-allowed;
+}
+input.ip {
+  width: 170px;
+  font-size: 18px;
+  letter-spacing: 2px;
+  text-align: center;
+  padding: 5px;
+}
+#logBox {
+  width: 100%;
+  height: 200px;
+  background: #111;
+  color: #0f0;
+  font-family: monospace;
+  font-size: 13px;
+  padding: 8px;
+  overflow-y: auto;
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+
+/* ===== File Manager ===== */
+.file-toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.fs-file-list {
+  width: 100%;
+  max-height: 180px;
+  overflow-y: auto;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  margin-bottom: 8px;
+  box-sizing: border-box;
+}
+.fs-file-item {
+  display: flex;
+  align-items: center;
+  padding: 6px 10px;
+  cursor: pointer;
+  border-bottom: 1px solid #eee;
+  font-family: monospace;
+  font-size: 13px;
+}
+.fs-file-item:last-child {
+  border-bottom: none;
+}
+.fs-file-item:hover {
+  background: #f0f4ff;
+}
+.fs-file-item.selected {
+  background: #d0e0ff;
+}
+.fs-dir-item {
+  color: #555;
+  cursor: pointer;
+}
+.fs-dir-item:hover {
+  background: #fff8e1;
+}
+.fs-breadcrumb {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 4px 6px;
+  margin-bottom: 4px;
+  background: #f0f4ff;
+  border: 1px solid #dde;
+  border-radius: 4px;
+  font-size: 13px;
+  font-family: monospace;
+  min-height: 26px;
+}
+.fs-crumb {
+  color: #2060c0;
+  cursor: pointer;
+  padding: 0 2px;
+}
+.fs-crumb:hover {
+  text-decoration: underline;
+}
+.fs-crumb-sep {
+  color: #999;
+  padding: 0 2px;
+}
+.fs-file-name {
+  flex: 1;
+}
+.fs-file-size {
+  color: #888;
+  font-size: 12px;
+  margin-left: 10px;
+}
+.fs-editor {
+  width: 100%;
+}
+.fs-editor-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+.fs-filename-label {
+  flex: 1;
+  padding: 4px 8px;
+  font-family: monospace;
+  font-size: 14px;
+  color: #333;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

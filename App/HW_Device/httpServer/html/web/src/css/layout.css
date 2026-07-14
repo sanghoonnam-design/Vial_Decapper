@@ -1,0 +1,61 @@
+.container {
+  max-width: 900px;
+  margin: auto;
+  background: #fff;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+.section {
+  display: flex;
+  align-items: flex-start;
+  border: 1px solid #ddd;
+  padding: 12px;
+  margin-bottom: 12px;
+  border-radius: 6px;
+}
+
+.statusSection {
+  align-items: center;
+}
+
+.actionSection {
+  flex-wrap: wrap;
+}
+
+.networkSection {
+  flex-direction: column;
+}
+
+.fileSection {
+  flex-direction: column;
+}
+
+.logSection {
+  flex-direction: column;
+}
+
+.rightArea {
+  margin-left: auto;
+}
+
+.network-settings {
+  display: flex;
+  flex-direction: column;
+}
+
+.network-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.network-row label {
+  width: 140px;
+}
+
+.btnRow {
+  display: flex;
+  gap: 8px;
+}

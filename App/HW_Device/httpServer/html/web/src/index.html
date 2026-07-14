@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>App</title>
+  <link rel="stylesheet" href="./css/base.css">
+  <link rel="stylesheet" href="./css/layout.css">
+  <link rel="stylesheet" href="./css/components.css">
+</head>
+
+<body>
+  <div class="container">
+    <h2>App</h2>
+    <div>
+      <label>Model:</label>
+      <span id="modelName">None</span>
+    </div>
+    <div class="section statusSection">
+      <div>
+        <label>Time:</label>
+        <span id="RtcTime"></span>
+      </div>
+      <div class="rightArea">
+        <label>App Confirmed:</label>
+        <span id="appConfirmed">None</span>
+      </div>
+    </div>
+    <div class="section actionSection">
+      <button id="btnGotoBoot">Go to Boot</button>
+      <button id="btnFactorySet">Factory Set</button>
+      <button id="btnSystemReset">System Reset</button>
+      <!-- <button id="btnDownload">파일 다운로드</button> -->
+    </div>
+    <div class="section networkSection">
+      <h2>Network Settings</h2>
+      <div class="network-settings">
+        <div class="network-row">
+          <label for="ip">IP Address :</label>
+          <input class="ip" id="ip" value="___.___.___.___" maxlength="15" inputmode="numeric" autocomplete="off">
+        </div>
+        <div class="network-row">
+          <label for="subnet">Subnet Mask :</label>
+          <input class="ip" id="subnet" value="___.___.___.___" maxlength="15" inputmode="numeric" autocomplete="off">
+        </div>
+        <div class="network-row">
+          <label for="gateway">Gateway :</label>
+          <input class="ip" id="gateway" value="___.___.___.___" maxlength="15" inputmode="numeric" autocomplete="off">
+        </div>
+        <div class="btnRow">
+          <button id="btnGetNetwork">Get</button>
+          <button id="btnSetNetwork">Set</button>
+        </div>
+      </div>
+    </div>
+    <div class="section fileSection">
+      <h2>SD Card</h2>
+      <div class="file-toolbar">
+        <button id="btnFsList">Refresh</button>
+        <button id="btnFsUpload">Upload</button>
+        <input type="file" id="fsUploadInput" style="display:none">
+      </div>
+      <div id="fsBreadcrumb" class="fs-breadcrumb"></div>
+      <div id="fsFileList" class="fs-file-list"></div>
+      <div id="fsEditor" class="fs-editor" style="display:none">
+        <div class="fs-editor-header">
+          <span id="fsFileName" class="fs-filename-label"></span>
+          <button id="btnFsDownload">Download</button>
+          <button id="btnFsDelete">Delete</button>
+          <button id="btnFsClose">Close</button>
+        </div>
+      </div>
+    </div>
+    <div class="section logSection">
+      <label>Log</label>
+      <div id="logBox"></div>
+    </div>
+  </div>
+  <script type="module" src="./js/app.js"></script>
+</body>
+
+</html>
