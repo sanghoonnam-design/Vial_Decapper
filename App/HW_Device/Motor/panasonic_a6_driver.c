@@ -782,11 +782,6 @@ U08 PanasonicA6_TestRun(A6_DriverCtrl_t *param)
     return ret;
 }
 
-U08 PanasonicA6_IsConnected(U08 id)
-{
-    return 1;
-}
-
 static U08 _modbusWriteMultipleRegisters(U08 id, U16 addr, U16 quantity, U16 *dataIn, U08 *flag)
 {
     return RS485_ModbusWriteFunc(RS485_MSG_PRIORITY_HIGH, id, MODBUS_FUNC_CODE_WRITE_MULTIPLE_REG, addr, quantity, dataIn, flag);

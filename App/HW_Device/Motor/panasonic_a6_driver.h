@@ -223,9 +223,7 @@ PANASONIC_A6_DRIVER_EXT F32 PanasonicA6_GetVel(U08 id); // 초당 pulse
 PANASONIC_A6_DRIVER_EXT U08 PanasonicA6_TestRun(A6_DriverCtrl_t *param);
 
 PANASONIC_A6_DRIVER_EXT U08 PanasonicA6_IsConnected(U08 id); // 통신이 끊겼는지 확인. 통신이 끊기면 명령을 영구 차단하지 못하게 함.
-
 PANASONIC_A6_DRIVER_EXT U08 PanasonicA6_CheckTransaction(A6_FuncIndex_t idx);
-PANASONIC_A6_DRIVER_EXT U08 PanasonicA6_IsConnected(U08 id);
 PANASONIC_A6_DRIVER_EXT A6_DriverCtrl_t A6_DriverCtrl;
 
 #endif
