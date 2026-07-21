@@ -13,16 +13,16 @@
 #define MIRROR_ADDR_2_LOGICAL_INPUT (0x4419)
 #define MIRROR_ADDR_3_LOGICAL_OUTPUT (0x441A)
 #define MIRROR_ADDR_4_BLOCK_STATUS_FLAG (0x441B)
-//#define MIRROR_ADDR_5_BLOCK_NUMBER (0x441C)
-//#define MIRROR_ADDR_6_BLOCK_VEL_0 (0x441D)
-//#define MIRROR_ADDR_7_BLOCK_ACC_0 (0x441E)
-//#define MIRROR_ADDR_8_BLOCK_DEC_0 (0x441F)
-//#define MIRROR_ADDR_9_BLOCK_CMD_0_LOW (0x4420)
-//#define MIRROR_ADDR_10_BLOCK_CMD_0_HIGH (0x4421)
-//#define MIRROR_ADDR_11_BLOCK_DATA_0_LOW (0x4422)
-//#define MIRROR_ADDR_12_BLOCK_DATA_0_HIGH (0x4423)
-//#define MIRROR_ADDR_13_BLOCK_CONTROL_WORD (0x4424)
-//#define MIRROR_ADDR_14_VIRTUAL_INPUT (0x4425)
+// #define MIRROR_ADDR_5_BLOCK_NUMBER (0x441C)
+// #define MIRROR_ADDR_6_BLOCK_VEL_0 (0x441D)
+// #define MIRROR_ADDR_7_BLOCK_ACC_0 (0x441E)
+// #define MIRROR_ADDR_8_BLOCK_DEC_0 (0x441F)
+// #define MIRROR_ADDR_9_BLOCK_CMD_0_LOW (0x4420)
+// #define MIRROR_ADDR_10_BLOCK_CMD_0_HIGH (0x4421)
+// #define MIRROR_ADDR_11_BLOCK_DATA_0_LOW (0x4422)
+// #define MIRROR_ADDR_12_BLOCK_DATA_0_HIGH (0x4423)
+// #define MIRROR_ADDR_13_BLOCK_CONTROL_WORD (0x4424)
+// #define MIRROR_ADDR_14_VIRTUAL_INPUT (0x4425)
 
 #define SAVE_ALL_PARAM (0x1020) // 2BYTE
 
@@ -36,13 +36,13 @@
 #define ADDR_BLOCK_NUMBER (0x4414)      // 2BYTE
 
 #define ADDR_BLOCK_VEL_BASE (0x4600)
-#define ADDR_BLOCK_VEL(num)	(ADDR_BLOCK_VEL_BASE + num)
+#define ADDR_BLOCK_VEL(num) (ADDR_BLOCK_VEL_BASE + num)
 
 #define ADDR_BLOCK_ACC_BASE (0x4610)
-#define ADDR_BLOCK_ACC(num)	(ADDR_BLOCK_ACC_BASE + num)
+#define ADDR_BLOCK_ACC(num) (ADDR_BLOCK_ACC_BASE + num)
 
 #define ADDR_BLOCK_DEC_BASE (0x4620)
-#define ADDR_BLOCK_DEC(num)	(ADDR_BLOCK_DEC_BASE + num)
+#define ADDR_BLOCK_DEC(num) (ADDR_BLOCK_DEC_BASE + num)
 
 #define ADDR_BLOCK_METHODS (0x4630) // 2BYTE
 
@@ -52,32 +52,31 @@
 #define ADDR_HOMING_ACC (0x4639)              // 2BYTE
 
 #define ADDR_BLOCK_HOMEINGLESS (0x463A) // 2BYTE
-#define ADDR_BLOCK_ACC_UNIT (0x463B) // 2BYTE
-#define ADDR_BLOCK_DEC_UNIT (0x463C) // 2BYTE
-
+#define ADDR_BLOCK_ACC_UNIT (0x463B)    // 2BYTE
+#define ADDR_BLOCK_DEC_UNIT (0x463C)    // 2BYTE
 
 #define ADDR_BLOCK_CMD_BASE (0x4800)
 #define ADDR_BLOCK_DATA_BASE (0x4802)
 
-#define ADDR_BLOCK_CMD(num)		(ADDR_BLOCK_CMD_BASE + 4*num)
-#define ADDR_BLOCK_DATA(num)	(ADDR_BLOCK_DATA_BASE + 4*num)
+#define ADDR_BLOCK_CMD(num) (ADDR_BLOCK_CMD_BASE + 4 * num)
+#define ADDR_BLOCK_DATA(num) (ADDR_BLOCK_DATA_BASE + 4 * num)
 
 #define ADDR_POS_ACTUAL_VALUE (0x600F) // 4BYTE
 #define ADDR_VEL_ACTUAL_VALUE (0x601C) // 4BYTE
 
 // Block Command Code
-#define BLOCK_COMMAND_CODE_REL_MOVE   (0x1)
-#define BLOCK_COMMAND_CODE_ABS_MOVE	  (0x2)
-#define BLOCK_COMMAND_CODE_JOG 		  (0x3)
-#define BLOCK_COMMAND_CODE_HOME 	  (0x4)
+#define BLOCK_COMMAND_CODE_REL_MOVE (0x1)
+#define BLOCK_COMMAND_CODE_ABS_MOVE (0x2)
+#define BLOCK_COMMAND_CODE_JOG (0x3)
+#define BLOCK_COMMAND_CODE_HOME (0x4)
 #define BLOCK_COMMAND_CODE_UPDATE_VEL (0x6)
 #define BLOCK_COMMAND_CODE_COND_EQUAL (0xA)
 
-#define BLOCK_NUM_HOME_CW		 (0)
-#define BLOCK_NUM_HOME_CCW	     (1)
-#define BLOCK_NUM_JOG_CW		 (2)
-#define BLOCK_NUM_JOG_CCW		 (3)
-#define BLOCK_NUM_MOVE			 (4)
+#define BLOCK_NUM_HOME_CW (0)
+#define BLOCK_NUM_HOME_CCW (1)
+#define BLOCK_NUM_JOG_CW (2)
+#define BLOCK_NUM_JOG_CCW (3)
+#define BLOCK_NUM_MOVE (4)
 
 #pragma pack(push, 1)
 typedef union BlockCommand_t
@@ -160,21 +159,21 @@ static U08 _A6_MsgProcessed[2][A6_FUNC_INDEX_MAX] = {
         1, // A6_FUNC_INDEX_UPDATE_STATUS
     }};
 
-enum {
-	ACC_DEC_UNIT_0_1_MS = 0,
-	ACC_DEC_UNIT_0_5_MS,
-	ACC_DEC_UNIT_1_0_MS,
-	ACC_DEC_UNIT_10_0_MS,
-	ACC_DEC_UNIT_100_0_MS,
+enum
+{
+    ACC_DEC_UNIT_0_1_MS = 0,
+    ACC_DEC_UNIT_0_5_MS,
+    ACC_DEC_UNIT_1_0_MS,
+    ACC_DEC_UNIT_10_0_MS,
+    ACC_DEC_UNIT_100_0_MS,
 };
 
 const U16 _AccDecUnit[5] = {
-		1,
-		5,
-		10,
-		100,
-		1000
-};
+    1,
+    5,
+    10,
+    100,
+    1000};
 
 U08 PanasonicA6_Init(U08 id)
 {
@@ -224,43 +223,47 @@ U08 PanasonicA6_Init(U08 id)
 
     // 4:abs, rel
     block.cmd.word = 0;
-	block.cmd.cmdCode = BLOCK_COMMAND_CODE_REL_MOVE;
-	block.cmd.arg1 = 1;
-	block.cmd.arg2 = 1;
-	block.cmd.arg3 = 1;
-	block.cmd.arg5 = 0;
-	block.data = 0;
-	_modbusWriteMultipleRegisters(id, ADDR_BLOCK_CMD(4), 4, (U16 *)block.word, flag);
+    block.cmd.cmdCode = BLOCK_COMMAND_CODE_REL_MOVE;
+    block.cmd.arg1 = 1;
+    block.cmd.arg2 = 1;
+    block.cmd.arg3 = 1;
+    block.cmd.arg5 = 0;
+    block.data = 0;
+    _modbusWriteMultipleRegisters(id, ADDR_BLOCK_CMD(4), 4, (U16 *)block.word, flag);
 
-	_modbusWriteMultipleRegisters(id, ADDR_BLOCK_ACC_UNIT, 1, (U16 *)&_AccDecUnit[ACC_DEC_UNIT_100_0_MS], flag);
-	ret = _modbusWriteMultipleRegisters(id, ADDR_BLOCK_DEC_UNIT, 1, (U16 *)&_AccDecUnit[ACC_DEC_UNIT_100_0_MS], flag);
+    _modbusWriteMultipleRegisters(id, ADDR_BLOCK_ACC_UNIT, 1, (U16 *)&_AccDecUnit[ACC_DEC_UNIT_100_0_MS], flag);
+    ret = _modbusWriteMultipleRegisters(id, ADDR_BLOCK_DEC_UNIT, 1, (U16 *)&_AccDecUnit[ACC_DEC_UNIT_100_0_MS], flag);
 
     return ret;
 }
 
 static void __attribute__((unused)) _SetBlockCondtionBranch(Block_t *p, S32 vel, U8 nextBlockNum, U8 end)
 {
-	p->cmd.word = 0;
-	p->cmd.cmdCode = BLOCK_COMMAND_CODE_COND_EQUAL;
-	p->cmd.arg1 = 4; //COMPARE MOTOR RPM
-	p->cmd.arg2 = (nextBlockNum>>6) & 0xF;
-	p->cmd.arg3 = (nextBlockNum>>2) & 0xF;
-	p->cmd.arg4 = nextBlockNum & 0x3;
-	if(end) p->cmd.arg5 = 1;
-	else	p->cmd.arg5 = 3;
-	p->data = vel;
+    p->cmd.word = 0;
+    p->cmd.cmdCode = BLOCK_COMMAND_CODE_COND_EQUAL;
+    p->cmd.arg1 = 4; // COMPARE MOTOR RPM
+    p->cmd.arg2 = (nextBlockNum >> 6) & 0xF;
+    p->cmd.arg3 = (nextBlockNum >> 2) & 0xF;
+    p->cmd.arg4 = nextBlockNum & 0x3;
+    if (end)
+        p->cmd.arg5 = 1;
+    else
+        p->cmd.arg5 = 3;
+    p->data = vel;
 }
 
 static void __attribute__((unused)) _SetUpdateVelocity(Block_t *p, U8 velNum, U8 end)
 {
-	p->cmd.word = 0;
-	p->cmd.cmdCode = BLOCK_COMMAND_CODE_UPDATE_VEL;
-	p->cmd.arg1 = velNum;
-	p->cmd.arg2 = 0;
-	p->cmd.arg3 = 0;
-	p->cmd.arg4 = 0;
-	if(end) p->cmd.arg5 = 0;
-	else	p->cmd.arg5 = 2;
+    p->cmd.word = 0;
+    p->cmd.cmdCode = BLOCK_COMMAND_CODE_UPDATE_VEL;
+    p->cmd.arg1 = velNum;
+    p->cmd.arg2 = 0;
+    p->cmd.arg3 = 0;
+    p->cmd.arg4 = 0;
+    if (end)
+        p->cmd.arg5 = 0;
+    else
+        p->cmd.arg5 = 2;
 }
 
 U08 PanasonicA6_EEPROM_Write(U08 id)
@@ -294,7 +297,7 @@ U08 PanasonicA6_Disable(U08 id)
 }
 
 U08 PanasonicA6_ClearAlarm(U08 id)
-{//panaterm software reg 5.16 -> 1
+{ // panaterm software reg 5.16 -> 1
     U08 ret = 0;
     U08 *flag = _getFlagAddress(A6_FUNC_INDEX_CLEAR_ALARM);
 
@@ -367,12 +370,13 @@ U08 PanasonicA6_MoveVel(U08 id, U08 dir, U32 msec)
     U08 *flag = _getFlagAddress(A6_FUNC_INDEX_MOVE_VEL);
     F32 rpm, acc_ms, const_ms, dec_ms;
 
-    rpm    = _A6_DriverData[id - 1].param.vel;
+    rpm = _A6_DriverData[id - 1].param.vel;
     acc_ms = _A6_DriverData[id - 1].param.acc_ms;
     dec_ms = _A6_DriverData[id - 1].param.dec_ms;
 
     const_ms = msec - acc_ms - dec_ms;
-    if(const_ms < 0) const_ms = 0;
+    if (const_ms < 0)
+        const_ms = 0;
 
     F32 Ta = acc_ms / 1000.f;
     F32 Tv = const_ms / 1000.f;
@@ -386,7 +390,7 @@ U08 PanasonicA6_MoveVel(U08 id, U08 dir, U32 msec)
 
     if (dir)
     {
-    	total_pulse *= -1;
+        total_pulse *= -1;
     }
 
     _A6_DriverData[id - 1].ctrl.blockCtrl.start = 0;
@@ -501,31 +505,31 @@ U08 PanasonicA6_SetProfile(U08 id, U16 vel, U32 accTime_ms, U32 decTime_ms)
     _A6_DriverData[id - 1].param.dec_ms = decTime_ms;
 
     acc = (accTime_ms * 3000L / 100) / vel;
-    if(acc > 10000)
+    if (acc > 10000)
     {
-    	time_ms = (10000 * 100)/3000.f * vel;
-    	LOG_MSG_SEND("Set Profile acc time lower than %d[ms].", time_ms);
-    	acc = 10000;
+        time_ms = (10000 * 100) / 3000.f * vel;
+        LOG_MSG_SEND("Set Profile acc time lower than %d[ms].", time_ms);
+        acc = 10000;
     }
-    if(acc == 0)
+    if (acc == 0)
     {
-    	time_ms = (1 * 100)/3000.f * vel;
-		LOG_MSG_SEND("Set Profile acc time upper than %d[ms].", time_ms);
-    	acc = 1;
+        time_ms = (1 * 100) / 3000.f * vel;
+        LOG_MSG_SEND("Set Profile acc time upper than %d[ms].", time_ms);
+        acc = 1;
     }
 
     dec = (decTime_ms * 3000L / 100) / vel;
-    if(dec > 10000)
+    if (dec > 10000)
     {
-    	time_ms = (10000 * 100)/3000.f * vel;
-    	LOG_MSG_SEND("Set Profile dec time lower than %d[ms].", time_ms);
-    	dec = 10000;
+        time_ms = (10000 * 100) / 3000.f * vel;
+        LOG_MSG_SEND("Set Profile dec time lower than %d[ms].", time_ms);
+        dec = 10000;
     }
-    if(dec == 0)
+    if (dec == 0)
     {
-    	time_ms = (1 * 100)/3000.f * vel;
-		LOG_MSG_SEND("Set Profile dec time upper than %d[ms].", time_ms);
-		dec = 1;
+        time_ms = (1 * 100) / 3000.f * vel;
+        LOG_MSG_SEND("Set Profile dec time upper than %d[ms].", time_ms);
+        dec = 1;
     }
 
     _modbusWriteMultipleRegisters(id, ADDR_BLOCK_VEL(1), 1, (U16 *)&vel, flag);
@@ -550,31 +554,31 @@ U08 PanasonicA6_SetJogProfile(U08 id, U16 vel, U32 accTime_ms, U32 decTime_ms)
     _A6_DriverData[id - 1].param.jogDec_ms = decTime_ms;
 
     acc = (accTime_ms * 3000L / 100) / vel;
-    if(acc > 10000)
+    if (acc > 10000)
     {
-    	time_ms = (10000 * 100)/3000.f * vel;
-    	LOG_MSG_SEND("Set Jog Profile acc time lower than %d[ms].", time_ms);
-    	acc = 10000;
+        time_ms = (10000 * 100) / 3000.f * vel;
+        LOG_MSG_SEND("Set Jog Profile acc time lower than %d[ms].", time_ms);
+        acc = 10000;
     }
-    if(acc == 0)
+    if (acc == 0)
     {
-    	time_ms = (1 * 100)/3000.f * vel;
-		LOG_MSG_SEND("Set Jog Profile acc time upper than %d[ms].", time_ms);
-    	acc = 1;
+        time_ms = (1 * 100) / 3000.f * vel;
+        LOG_MSG_SEND("Set Jog Profile acc time upper than %d[ms].", time_ms);
+        acc = 1;
     }
 
     dec = (decTime_ms * 3000L / 100) / vel;
-    if(dec > 10000)
+    if (dec > 10000)
     {
-    	time_ms = (10000 * 100)/3000.f * vel;
-    	LOG_MSG_SEND("Set Jog Profile dec time lower than %d[ms].", time_ms);
-    	dec = 10000;
+        time_ms = (10000 * 100) / 3000.f * vel;
+        LOG_MSG_SEND("Set Jog Profile dec time lower than %d[ms].", time_ms);
+        dec = 10000;
     }
-    if(dec == 0)
+    if (dec == 0)
     {
-    	time_ms = (1 * 100)/3000.f * vel;
-		LOG_MSG_SEND("Set Jog Profile dec time upper than %d[ms].", time_ms);
-		dec = 1;
+        time_ms = (1 * 100) / 3000.f * vel;
+        LOG_MSG_SEND("Set Jog Profile dec time upper than %d[ms].", time_ms);
+        dec = 1;
     }
 
     _modbusWriteMultipleRegisters(id, ADDR_BLOCK_VEL(0), 1, (U16 *)&_A6_DriverData[id - 1].param.jogVel, flag);
@@ -592,7 +596,7 @@ U08 PanasonicA6_SetHomeParam(U08 id, S32 offset, U16 velH, U16 velL, U32 accTime
     U08 ret = 0;
     U08 *flag = _getFlagAddress(A6_FUNC_INDEX_SET_HOME_PARAM);
     U16 acc = (accTime_ms * 3000L) / velH;
-    
+
     _A6_DriverData[id - 1].homeParam.offset = offset;
     _modbusWriteMultipleRegisters(id, ADDR_BLOCK_HOME_OFFSET, 2, (U16 *)&_A6_DriverData[id - 1].homeParam.offset, flag);
     _A6_DriverData[id - 1].homeParam.speedHigh = velH;
@@ -702,6 +706,11 @@ U08 PanasonicA6_CheckTransaction(A6_FuncIndex_t idx)
         ret = 1;
 
     return ret;
+}
+
+U08 PanasonicA6_IsConnected(U08 id)
+{
+    return RS485_IsConnected();
 }
 
 U08 PanasonicA6_TestRun(A6_DriverCtrl_t *param)

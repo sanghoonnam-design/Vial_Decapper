@@ -16,7 +16,7 @@
 #define PL_DEFAULT_DIRECTION /*                       */ (1) // 1 or -1
 #define PL_DEFAULT_HOME_SPEED_FORWARD_RPM /*          */ (15)
 #define PL_DEFAULT_HOME_SPEED_BACKWARD_RPM /*         */ (5)
-#define PL_DEFAULT_HOME_TIME_ACCEL_MILLIS /*          */ (100)
+#define PL_DEFAULT_HOME_TIME_ACCEL_MILLIS /*          */ (50)
 #define PL_DEFAULT_HOME_OFFSET /*                     */ (100)
 #define PL_DEFAULT_SLOT_SPEED_RPM /*                  */ (20)
 #define PL_DEFAULT_SLOT_TIME_ACCEL_MILLIS /*          */ (500)
