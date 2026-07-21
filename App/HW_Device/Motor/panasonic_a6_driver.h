@@ -62,22 +62,22 @@ typedef enum A6_DriverCtrlCommand_t
 
 #pragma pack(push, 1)
 typedef union LogicalInput_t
-{ // 논리입력상태모니터
+{ // 논리입력상태모니터: 실재 내부 상태
     struct
     {
         U16 servoOn : 1;
-        U16 alarmClear : 1;
+        U16 alarmClear : 1; 
         U16 rsvd0 : 14;
     };
     U16 halfword;
 } LogicalInput_t;
 
 typedef union VirtualInput_t
-{ // 논리입력신호조작
+{ // 논리입력신호 [조작]
     struct
     {
-        U16 servoOn : 1;
-        U16 alarmClear : 1;
+        U16 servoOn : 1; 
+        U16 alarmClear : 1; // 
         U16 rsvd0 : 14;
     };
     U16 halfword;
@@ -91,7 +91,7 @@ typedef union LogicalOutput_t
         U16 alarm : 1;
         U16 inPos : 1;
         U16 rsvd0 : 1;
-        U16 zeroSpeed : 1;
+        U16 zeroSpeed : 1; // 속도가 0인 상태를 의미, inPos와는 다름
         U16 rsvd1 : 11;
     };
     U16 halfword;
@@ -212,6 +212,7 @@ PANASONIC_A6_DRIVER_EXT U08 PanasonicA6_UpdateStatus(U08 id);
 
 PANASONIC_A6_DRIVER_EXT U16 PanasonicA6_GetErrorCode(U08 id);
 PANASONIC_A6_DRIVER_EXT U08 PanasonicA6_IsServoOn(U08 id);
+PANASONIC_A6_DRIVER_EXT U08 PanasonicA6_IsServoReady(U08 id); // servoOn 해도 되는 상태를 의미, servoOn이 되었는지 아닌지는 아님
 PANASONIC_A6_DRIVER_EXT U08 PanasonicA6_IsAlarm(U08 id);
 PANASONIC_A6_DRIVER_EXT U08 PanasonicA6_IsInPos(U08 id);
 PANASONIC_A6_DRIVER_EXT U08 PanasonicA6_IsZeroSpeed(U08 id);
@@ -220,6 +221,8 @@ PANASONIC_A6_DRIVER_EXT U08 PanasonicA6_IsHomeCompelte(U08 id);
 PANASONIC_A6_DRIVER_EXT S32 PanasonicA6_GetPos(U08 id);
 PANASONIC_A6_DRIVER_EXT F32 PanasonicA6_GetVel(U08 id); // 초당 pulse
 PANASONIC_A6_DRIVER_EXT U08 PanasonicA6_TestRun(A6_DriverCtrl_t *param);
+
+PANASONIC_A6_DRIVER_EXT U08 PanasonicA6_IsConnected(U08 id); // 통신이 끊겼는지 확인. 통신이 끊기면 명령을 영구 차단하지 못하게 함.
 
 PANASONIC_A6_DRIVER_EXT U08 PanasonicA6_CheckTransaction(A6_FuncIndex_t idx);
 PANASONIC_A6_DRIVER_EXT U08 PanasonicA6_IsConnected(U08 id);

@@ -47,7 +47,7 @@ void SYSPL_DefaultSetting(void)
  */
 void SYSPL_FactorySetting(void)
 {
-	LOG_MSG_SEND("Factory Setting...");
+    LOG_MSG_SEND("Factory Setting...");
     /*[]. 구조체 초기화 */
     memset(&gEEPROM, 0, sizeof(tsEEPROM_Config));
 
@@ -62,7 +62,7 @@ void SYSPL_FactorySetting(void)
     gEEPROM.header.FW_Version = FW_VERSION;
     gEEPROM.header.SystemType = GetSystemType();
     gEEPROM.header.ModelType = GetModelType();
-    
+
     gEEPROM.hwInfo.network.ip[0] = 192;
     gEEPROM.hwInfo.network.ip[1] = 168;
     gEEPROM.hwInfo.network.ip[2] = 0;
@@ -77,7 +77,7 @@ void SYSPL_FactorySetting(void)
     gEEPROM.hwInfo.network.gw[1] = 168;
     gEEPROM.hwInfo.network.gw[2] = 0;
     gEEPROM.hwInfo.network.gw[3] = 1;
-    
+
     gEEPROM.hwInfo.network.portNum = 8000;
 
     /*[]. factory 기본값 입력 */
@@ -89,6 +89,9 @@ void SYSPL_FactorySetting(void)
     SYSPL_UpdateSystemParams();
 
     /*[]. 최종 EEPROM에 save */
+    // [YYMMDD] parameter를 EEPROM에 저장한 날짜 저장
+    xPL.Header.UpdateDate = SWRTC_GetTime_YYMMDDHH();
+
     EEPROMPL_SaveToEEPROM();
     // EEPROMPL_SaveToFlash(); //TODO
 }
@@ -128,7 +131,7 @@ void SYSPL_UpdategEepromStructure(void)
     gEEPROM.header.FW_Version = (U32)xSystemInfo.pl_FW_Version;
     gEEPROM.header.SystemType = (U32)xSystemInfo.pl_systemType;
     gEEPROM.header.ModelType = (U32)xSystemInfo.pl_modelType;
-    
+
     gEEPROM.hwInfo.network.ip[0] = (U32)xSystemInfo.network.ip[0];
     gEEPROM.hwInfo.network.ip[1] = (U32)xSystemInfo.network.ip[1];
     gEEPROM.hwInfo.network.ip[2] = (U32)xSystemInfo.network.ip[2];
@@ -274,7 +277,7 @@ void EEPROMPL_SaveToEEPROM(void)
     U08 newBlock;
 
     xprintf("Saving to EEPROM... (size : %d bytes) ", sizeof(tsEEPROM_Config));
-    //uint32_t startTime = HAL_GetTick();
+    // uint32_t startTime = HAL_GetTick();
 
     SYSPL_UpdategEepromStructure();
 
@@ -295,8 +298,8 @@ void EEPROMPL_SaveToEEPROM(void)
 
     EEPROM_WriteBlock(newBlock, &gEEPROM);
 
-//    uint32_t elapsedTime = HAL_GetTick() - startTime;
-//    LOG_MSG_SEND("Writing to new block %d with updateCount %d. - completed in %lu ms", newBlock, gEEPROM.updateCount, elapsedTime);
+    //    uint32_t elapsedTime = HAL_GetTick() - startTime;
+    //    LOG_MSG_SEND("Writing to new block %d with updateCount %d. - completed in %lu ms", newBlock, gEEPROM.updateCount, elapsedTime);
 }
 
 /**
@@ -398,7 +401,7 @@ static bool FindLatestValidBlock(U08 *latestBlock) // 속도 개선 버전
     uint16_t maxUpdateCount = 0;
     bool found = false;
 
-    //xprintf("Finding latest valid block...");
+    // xprintf("Finding latest valid block...");
 
     // for (int i = 0; i < EEPROM_MAX_BLOCKS; i++)
     for (int i = EEPROM_MAX_BLOCKS - 1; i >= 0; i--) // [속도개선] 최신 블록부터 역순 검색
@@ -415,7 +418,7 @@ static bool FindLatestValidBlock(U08 *latestBlock) // 속도 개선 버전
         // 읽을 데이터: FactorySetConfirm_Key와 updateCount만
         EEPROM_ReadBytes(EEPROM_APP_PARAM_BASE_ADDRESS + (i * EEPROM_BLOCK_SIZE), (U8 *)&tempData, sizeof(tempData));
 
-//        xprintf("Block %d: ConfirmKey = 0x%08X, updateCount = %d", i, tempData.factorySetConfirmKey, tempData.updateCount);
+        //        xprintf("Block %d: ConfirmKey = 0x%08X, updateCount = %d", i, tempData.factorySetConfirmKey, tempData.updateCount);
 
         // Factory setting 확인 및 updateCount 확인
         if (tempData.factorySetConfirmKey == EEPROM_FACTORY_SETTING_KEY)
@@ -425,7 +428,7 @@ static bool FindLatestValidBlock(U08 *latestBlock) // 속도 개선 버전
                 maxUpdateCount = tempData.updateCount;
                 *latestBlock = i;
                 found = true;
-//                xprintf("Found valid block %d with updateCount %d", i, tempData.updateCount);
+                //                xprintf("Found valid block %d with updateCount %d", i, tempData.updateCount);
             }
         }
     }
@@ -495,7 +498,7 @@ static bool EEPROM_WriteBlock(U08 blockIndex, const tsEEPROM_Config *config)
     uint16_t mainAddress = EEPROM_APP_PARAM_BASE_ADDRESS + (blockIndex * EEPROM_BLOCK_SIZE);
     uint16_t backupAddress = EEPROM_APP_PARAM_BASE_ADDRESS + (backupBlock * EEPROM_BLOCK_SIZE);
 
-//    xprintf("Writing block %d (Backup Block %d)...", blockIndex, backupBlock);
+    //    xprintf("Writing block %d (Backup Block %d)...", blockIndex, backupBlock);
 
     // 구조체를 바이트 배열처럼 접근하기 위해 const 포인터로 변환
     const U08 *data = (const U08 *)config;
@@ -536,6 +539,9 @@ static bool EEPROM_WriteBlock(U08 blockIndex, const tsEEPROM_Config *config)
 
 bool EEPROMPL_SaveToEEPROMandFlash(void)
 {
+    // [YYMMDD] parameter를 EEPROM에 저장한 날짜 저장
+        xPL.Header.UpdateDate = SWRTC_GetTime_YYMMDDHH();
+        
     // SYSPL_UpdategEepromStructure();
 
     EEPROMPL_SaveToEEPROM();

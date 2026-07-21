@@ -1,11 +1,11 @@
 /*******************************************************************************
- * XCommandHandling.h
+ * XCommand_Core.h
  *
  *  Created on: 2025.06.20
  *      Author: RND. Kang PilSoon.
  ******************************************************************************/
-#ifndef _XCOMMANDHANDLING_H_
-#define _XCOMMANDHANDLING_H_
+#ifndef _XCOMMAND_CORE_H_
+#define _XCOMMAND_CORE_H_
 
 #include "XGlobal.h"
 #include "XParser.h"
@@ -15,6 +15,30 @@
 #include "XDebug.h"
 
 extern tsXBuffer *xSendMsg;
+extern SemaphoreHandle_t xMutex_Command;
+
+#if 0
+#define BUFFER_SIZE_SENDMESSAGE (200)
+#else
+#define BUFFER_SIZE_SENDMESSAGE (512)
+#endif
+
+typedef void (*CommandHandler)(const tsXParsedData *parsedData, U08 useTCP);
+
+typedef struct
+{
+    bool CommandType;       // [1]. 0:system 명령(실제 사용하는 명령), 1:debugging 명령
+    char *Command;          // [2]. 명령어 문자열
+    CommandHandler Handler; // [3]. 처리 함수 포인터
+    char *Help;             // [4]. 명령어 설명
+    char *exHelp;           // [5]. 예제 설명
+} tsXCommandMapping;
+
+typedef enum
+{
+    CLI_COMMAND_SYSTEM = 0, // 실제 상위 app. 에서 사용하는 명령
+    CLI_COMMAND_DEBUG = 1   // 개발자 디버깅용 명령
+} teXCLI_CommandType;
 
 #define SEND_MESSAGE(__msg, __msgSize, __CommType)                              \
     do                                                                          \
@@ -36,19 +60,31 @@ extern tsXBuffer *xSendMsg;
         }                                                                       \
     } while (0)
 
-void Init_CommandHandling(void);
+#define IS_USB(__useTCP) ((__useTCP) == COMM_USB)
+#define IS_CMD_GET(__pd) ((__pd)->ParamCount == 0)
+#define IS_CMD_PARAM_NONE(__pd) (IS_CMD_GET(__pd))
+#define IS_CMD_HELP(__pd) ((__pd)->ParamCount >= 1 && (__pd)->Params[0].value._int == '?')
+
 
 /************************************************************************* *
-** @brief Command Handler                                                  *
-****************************************************************************/
+ ** @brief Command Handler                                                  *
+ ****************************************************************************/
+void Init_CommandHandling(void);
 void Handle_command(const tsXParsedData *parsed_data, U08 useTC);
+void Handle_command_by_string(const char *cmdStr, U08 useTCP);
+
+void CMD_MakeCommandWithCRLF(char *dst, size_t dstSize, const char *src);
+bool CMD_ShouldSkip_USBResponse(const tsXParsedData *parsedData);
+/************************************************************************* */
+
+/************************************************************************* */
+/* module 등록용 */
+extern const tsXCommandMapping gModuleCommandTable[];
+extern const int gModuleCommandCount;
 /************************************************************************* */
 
 /* Command prototype */
 void CMD_Handle_VERS(const tsXParsedData *parsedData, U08 useTCP);
-void CMD_Handle_MODEL(const tsXParsedData *parsedData, U08 useTCP);
-void CMD_Handle_GSTA(const tsXParsedData *parsedData, U08 useTCP);
-void CMD_Handle_PSTA(const tsXParsedData *parsedData, U08 useTCP);
 void CMD_Handle_GERR(const tsXParsedData *parsedData, U08 useTCP);
 void CMD_Handle_GERD(const tsXParsedData *parsedData, U08 useTCP);
 void CMD_Handle_CLER(const tsXParsedData *parsedData, U08 useTCP);
@@ -79,36 +115,15 @@ void CMD_Handle_TimerOnOff(const tsXParsedData *parsedData, U08 useTCP);
 void CMD_Handle_NoOperation(const tsXParsedData *parsedData, U08 useTCP);
 
 void CMD_Handle_ClearScreen(const tsXParsedData *parsedData, U08 useTCP);
+bool CMD_CheckParamAll_Int(const tsXParsedData *parsedData, int expectedCount);
+bool CMD_CheckParamAll_Float(const tsXParsedData *parsedData, int expectedCount);
 void CMD_Handle_Help_All(const tsXParsedData *parsedData, U08 useTCP);
 void CMD_Handle_Help(const tsXParsedData *parsedData, U08 useTCP);
 void CMD_ShowCommandHelp(const tsXParsedData *parsedData);
 
 //=======================================================================
 
-void CMD_Handle_Test_LongRun(const tsXParsedData *parsedData, U08 useTCP);
-void CMD_Handle_ENABLE(const tsXParsedData *parsedData, U08 useTCP);
-void CMD_Handle_DISABLE(const tsXParsedData *parsedData, U08 useTCP);
-
-void CMD_Handle_SAVEA6(const tsXParsedData *parsedData, U08 useTCP);
-
-void CMD_Handle_MRDO(const tsXParsedData *parsedData, U08 useTCP);
-void CMD_Handle_ORG(const tsXParsedData *parsedData, U08 useTCP);
-void CMD_Handle_HOME(const tsXParsedData *parsedData, U08 useTCP);
-void CMD_Handle_CENT(const tsXParsedData *parsedData, U08 useTCP);
-void CMD_Handle_MOVS(const tsXParsedData *parsedData, U08 useTCP);
-void CMD_Handle_RESET(const tsXParsedData *parsedData, U08 useTCP);
-void CMD_Handle_SERV(const tsXParsedData *parsedData, U08 useTCP);
-void CMD_Handle_STOP(const tsXParsedData *parsedData, U08 useTCP);
-void CMD_Handle_ESTOP(const tsXParsedData *parsedData, U08 useTCP);
-void CMD_Handle_SASP(const tsXParsedData *parsedData, U08 useTCP);
-void CMD_Handle_JOGS(const tsXParsedData *parsedData, U08 useTCP);
-void CMD_Handle_GPOS(const tsXParsedData *parsedData, U08 useTCP);
-void CMD_Handle_STIME(const tsXParsedData *parsedData, U08 useTCP);
-void CMD_Handle_MOVA(const tsXParsedData *parsedData, U08 useTCP);
-void CMD_Handle_MOVI(const tsXParsedData *parsedData, U08 useTCP);
-
 //@ USER CODE - START
 
-
 //@ USER CODE - END
-#endif /* _XCOMMANDHANDLING_H_ */
+#endif /* _XCOMMAND_CORE_H_ */

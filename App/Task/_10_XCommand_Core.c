@@ -1,5 +1,5 @@
 /** ****************************************************************************
- * XCommandHandling.c
+ * XCommand_Core.c
  *
  * Created on: 2025.06.20
  * Author    : RND. Kang PilSoon.
@@ -10,78 +10,20 @@
  *
  ******************************************************************************/
 #include "XSystemInfo.h"
-#include "_10_XCommandHandling.h"
+#include "_10_XCommand_Core.h"
 #include "HW_CAN_Process.h"
 #include "HW_RS485_Process.h"
 #include "_04_XDiagnose.h"
 #include "XEEPROMParam.h"
 #include "XSystem_DB.h"
 
-#include "Dev_ServoMotor_A6.h"
-#include "panasonic_a6_driver.h"
-
-SemaphoreHandle_t xMutex_Command;
-#if 0
-#define BUFFER_SIZE_SENDMESSAGE (200)
-#else
-#define BUFFER_SIZE_SENDMESSAGE (512)
-#endif
-
 tsXBuffer *xSendMsg; // host -> client 전송 메시지버퍼
+SemaphoreHandle_t xMutex_Command;
 
-typedef void (*CommandHandler)(const tsXParsedData *parsedData, U08 useTCP);
-
-typedef struct
-{
-    bool CommandType;       // [1]. 0:system 명령(실제 사용하는 명령), 1:debugging 명령
-    char *Command;          // [2]. 명령어 문자열
-    CommandHandler Handler; // [3]. 처리 함수 포인터
-    char *Help;             // [4]. 명령어 설명
-    char *exHelp;           // [5]. 예제 설명
-} tsXCommandMapping;
-
-typedef enum
-{
-    CLI_COMMAND_SYSTEM = 0, // 실제 상위 app. 에서 사용하는 명령
-    CLI_COMMAND_DEBUG = 1   // 개발자 디버깅용 명령
-} teXCLI_CommandType;
-
-tsXCommandMapping commandTable[] = {
-
-    /** @note USER CODE BEGIN */
-
-    {1, "LR", /*        */ CMD_Handle_Test_LongRun, /*        */ "Long-Run test", /*               */ "LR <mode>"}, // 롱런 테스트
-
-    {0, "ENABLE", /*    */ CMD_Handle_ENABLE, /*              */ "Enable(Step & Servo)", /*        */ "ENABLE"},                         // 스텝모터, 서보 Enable
-    {0, "DISABLE", /*   */ CMD_Handle_DISABLE, /*             */ "Disable(Step & Servo)", /*       */ "DISABLE"},                        // 스텝모터, 서보 Disable
-    {0, "MRDO", /*      */ CMD_Handle_MRDO, /*                */ "RobotDoor Open/Close", /*        */ "MRDO <1=Open/0=Close>"},          // 로봇 챔버 도어 개폐 제어 (스텝모터 제어)
-    {1, "ORG", /*       */ CMD_Handle_ORG, /*                 */ "Origine Operation", /*           */ "ORG"},                            // 원심분리기 축 및 도어 초기 위치 복귀 (Homing)
-    {0, "HOME", /*      */ CMD_Handle_HOME, /*                */ "Homing Operation", /*            */ "HOME"},                           // 원심분리기 축 및 도어 초기 위치 복귀 (Homing)
-    {0, "CENT", /*      */ CMD_Handle_CENT, /*                */ "Centrifuge Run", /*              */ "CENT <rpm, time_sec>"},           // 원심분리 구동 명령, rpm 속도와 시간(s) 지정 (서보모터 제어)
-    {0, "MOVS", /*      */ CMD_Handle_MOVS, /*                */ "Move Slot", /*                   */ "MOVS <slot(1~6)>"},               // 시료 슬롯 이동 명령 (로봇 내부 샘플 트레이 회전/이동)
-    {1, "SLOT", /*      */ CMD_Handle_MOVS, /*                */ "Move Slot", /*                   */ "MOVS <slot(1~6)>"},               // 시료 슬롯 이동 명령 (로봇 내부 샘플 트레이 회전/이동)
-    {0, "RESET", /*     */ CMD_Handle_RESET, /*               */ "Emergency Reset", /*             */ "RESET"},                          // 비상 정지 이후 시스템 상태 초기화
-    {1, "SERV", /*      */ CMD_Handle_SERV, /*                */ "Servo Power On/Off", /*          */ "SERV <1=ON/0=OFF>"},              // 서보모터 전원 제어 (Enable/Disable)
-    {1, "MSTP", /*      */ CMD_Handle_STOP, /*                */ "Motor Stop", /*                  */ "MSTP"},                           // 정지 명령
-    {0, "STOP", /*      */ CMD_Handle_STOP, /*                */ "Motor Stop", /*                  */ "STOP"},                           // 정지 명령
-    {0, "ESTOP", /*     */ CMD_Handle_ESTOP, /*               */ "Motor EMG-Stop", /*              */ "ESTOP"},                          // 즉시 정지 명령
-    {1, "SASP", /*      */ CMD_Handle_SASP, /*                */ "Set Auto Slot Position", /*      */ "SASP"},                           // 슬롯 자동위치 티칭 (초기 셋업용)
-    {1, "JOGS", /*      */ CMD_Handle_JOGS, /*                */ "Jog Motion", /*                  */ "JOGS <Pulse>"},                   // 조그 이동 명령, dir=CW(1),CCW(0),
-    {1, "GPOS", /*      */ CMD_Handle_GPOS, /*                */ "Read current position(pulse)", /**/ "GPOS"},                           // 현재 위치 읽기
-    {1, "STIME", /*     */ CMD_Handle_STIME, /*               */ "Set Robo-Door delay time", /*    */ "STIME <close(0)/open(1), msec>"}, // 로봇도어 동작 지연 시간 셋팅
-    {1, "SAVEA6", /*    */ CMD_Handle_SAVEA6, /*              */ "Save A6 driver", /*              */ "SAVEA6"},                         // A6 드라이버 EEPROM 저장
-
-    {1, "MOVA", /*      */ CMD_Handle_MOVA, /*                */ "Absolute Move", /*               */ "MOVA <ch, pulse>"}, // 서보/스텝모터 절대 위치 이동 명령 (deg 또는 step 기준)
-    {1, "MOVI", /*      */ CMD_Handle_MOVI, /*                */ "Incremental Move", /*            */ "MOVI <ch, p>"},     // 서보/스텝모터 상대 이동 명령 (현재 위치 기준)
-
-    /** @note USER CODE END */
+tsXCommandMapping gCoreCommandTable[] = {
 
     {0, "VERS", /*      */ CMD_Handle_VERS, /*                */ "Get the FW version.", /*         */ "VERS"},      // 버전 정보 읽기
     {1, "VERSION", /*   */ CMD_Handle_VERS, /*                */ "Get the FW version.", /*         */ "VERSION"},   // 버전 정보 읽기
-    {1, "MODELINFO", /* */ CMD_Handle_MODEL, /*               */ "Get the System info.", /*        */ "MODEL"},     // 시스템 모델 읽기
-    {0, "GSTA", /*      */ CMD_Handle_GSTA, /*                */ "Get system States.", /*       */ "GSTA"},         // 시스템 상태 반환
-    {0, "ST", /*        */ CMD_Handle_GSTA, /*                */ "Get system States.", /*       */ "ST"},           // 시스템 상태 반환
-    {1, "PSTA", /*      */ CMD_Handle_PSTA, /*                */ "Get Detailed GSTA Info.", /*     */ "PSTA"},      // 시스템 상세 상태
     {0, "GERR", /*      */ CMD_Handle_GERR, /*                */ "Get the Error-code.", /*         */ "GERR"},      // 에러 코드 반환
     {1, "ERR", /*       */ CMD_Handle_GERR, /*                */ "Get the Error-code.", /*         */ "ERR"},       // 에러 코드 반환
     {0, "GERD", /*      */ CMD_Handle_GERD, /*                */ "Get the Error-message.", /*      */ "GERD"},      // 에러 메시지 반환
@@ -95,12 +37,12 @@ tsXCommandMapping commandTable[] = {
     {1, "FACTORY", /*   */ CMD_Handle_FACTORY, /*             */ "Factory setting.", /*            */ "FACTORY"},   // factory 셋팅
     {1, "PPARAM", /*    */ CMD_Handle_PrintParams, /*         */ "Display Params.", /*             */ "PPARAM"},    // EEPROM 셋팅값 읽어오기
 
-    {1, "SYSTEM", /*    */ CMD_Handle_ContFullInfo, /*        */ "Controller information", /*      */ "SYSTEM"},                               // 하드웨어 정보 출력
-    {1, "SETIP", /*     */ CMD_Handle_SetIP, /*               */ "Set IP", /*                      */ "SETIP 192,168,0,150"},                  // IP 셋팅
-    {1, "TASK", /*      */ CMD_Handle_TaskList, /*            */ "Check Task state", /*            */ "TASK"},                                 // Task  정보 출력
-    {1, "STACK", /*     */ CMD_Handle_StackSize, /*           */ "Check Task Stack-Size", /*       */ "STACK"},                                // stack size 정보 출력
-    {0, "REBO", /*      */ CMD_Handle_REBOOT, /*              */ "Reboing.", /*                    */ "REBOOT"},                               // 리부트 실행
-    {1, "RESET", /*     */ CMD_Handle_REBOOT, /*              */ "Reboototing.", /*                */ "REBO"},                                 // 리부트 실행
+    {1, "SYSTEM", /*    */ CMD_Handle_ContFullInfo, /*        */ "Controller information", /*      */ "SYSTEM"},              // 하드웨어 정보 출력
+    {1, "SETIP", /*     */ CMD_Handle_SetIP, /*               */ "Set IP", /*                      */ "SETIP 192,168,0,150"}, // IP 셋팅
+    {1, "TASK", /*      */ CMD_Handle_TaskList, /*            */ "Check Task state", /*            */ "TASK"},                // Task  정보 출력
+    {1, "STACK", /*     */ CMD_Handle_StackSize, /*           */ "Check Task Stack-Size", /*       */ "STACK"},               // stack size 정보 출력
+    {0, "REBO", /*      */ CMD_Handle_REBOOT, /*              */ "Reboing.", /*                    */ "REBOOT"},              // 리부트 실행
+    // {1, "RESET", /*     */ CMD_Handle_REBOOT, /*              */ "Reboototing.", /*                */ "REBO"},                                 // 리부트 실행
     {1, "REBOOT", /*    */ CMD_Handle_REBOOT, /*              */ "Rebooting.", /*                  */ "RESET"},                                // 리부트 실행
                                                                                                                                                //
     {1, "DI", /*        */ CMD_Handle_DI, /*                  */ "Get GPIO input.", /*             */ "DI (ch 1~16)"},                         // GPIO 출력값 쓰기
@@ -119,6 +61,11 @@ tsXCommandMapping commandTable[] = {
     {1, "??", /*        */ CMD_Handle_Help_All, /*            */ "Help(all command)", /*           */ "??"},                                   // 모든 Help 명령 출력
     {1, "?", /*         */ CMD_Handle_Help, /*                */ "Help", /*                        */ "?"},                                    // 실제 시스템 에서 사용하는 명령 출력
 };
+
+static const int gCoreCommandCount = sizeof(gCoreCommandTable) / sizeof(tsXCommandMapping);
+static int gWidth_Command = 23; // default width for help display
+static int gWidth_Help = 10;    // default width for command display in help
+static void CLI_GetMaxHelpWidth(void);
 
 void Init_CommandHandling(void)
 {
@@ -147,66 +94,142 @@ void Init_CommandHandling(void)
  * @brief Commmand 처리
  **********************************************************************************************/
 /**********************************************************************************************/
+static bool ExecuteFromTable(const tsXCommandMapping *table, int count,
+                             const tsXParsedData *parsedData, U08 useTCP)
+{
+    for (int i = 0; i < count; i++)
+    {
+        if (strcmp(parsedData->Command, table[i].Command) == 0)
+        {
+            table[i].Handler(parsedData, useTCP);
+            return true;
+        }
+    }
+    return false;
+}
+
 void Handle_command(const tsXParsedData *parsedData, U08 useTCP)
 {
-    /** 개별 명령어 도움말 처리 */ // --> 디버깅용, 1차 help 디스플레이
+    if (xSemaphoreTake(xMutex_Command, portMAX_DELAY) != pdTRUE)
+        return;
+
+    bool handled = false;
+
+    /* [0]. 개별 명령어 도움말 처리 */ // --> 디버깅용, 1차 help 디스플레이
     if (useTCP == COMM_USB && parsedData->ParamCount == 1 && parsedData->Params[0].value._int == '?')
     {
-        __newLine();
+        // __newLine();
         CMD_ShowCommandHelp(parsedData);
     }
 
-    /** 명령어 처리 */
-    for (int i = 0; i < sizeof(commandTable) / sizeof(tsXCommandMapping); i++)     // 명령어 리스트 돌려,
-    {                                                                              //
-        if (strcmp(parsedData->Command, commandTable[i].Command) == 0)             // 명령어 리스트에 해당 명령이 있으면,
-        {                                                                          //
-            if (xSemaphoreTake(xMutex_Command, NO_WAIT) == pdTRUE)                 //
-            {                                                                      //
-                /* [1]. Command 처리 */                                            //
-                XBuffer_Clear(xSendMsg);                                           // 버퍼 초기화 하고,
-                XBuffer_AddCommandString(xSendMsg, parsedData->Command, NO_COMMA); // 명령어 작성하고,
-                                                                                   //
-                commandTable[i].Handler(parsedData, useTCP);                       // 해당 명령어 내용 처리하고, RX 메시지 만들고,
-                                                                                   //
-                XBuffer_End(xSendMsg);                                             // '\0' 추가하고
-                                                                                   //
-
-                /** 조건: USB이고 skip 대상이면 응답 생략, 그 외에는 응답 */
-                const char *noEchoOnUSB[] = {
-                    "?", "??", "TT", "HT", "DEBUG", "SIZE", "FACTORY", "PPARAM", "TASK", "STACK", "PSTA"};
-
-                bool skipUSBResponse = false;
-                for (int i = 0; i < sizeof(noEchoOnUSB) / sizeof(noEchoOnUSB[0]); i++)
-                {
-                    if (strcmp(parsedData->Command, noEchoOnUSB[i]) == 0)
-                    {
-                        skipUSBResponse = true;
-                        break;
-                    }
-                }
-
-                if (!(useTCP == COMM_USB && skipUSBResponse))
-                {
-                    SEND_MESSAGE(XBuffer_GetBuffer(xSendMsg), (uint16_t)XBuffer_Length(xSendMsg), useTCP);
-                }
-
-                xSemaphoreGive(xMutex_Command);
-            }
-
-            /* [3]. 여기까지 왔으면 명령어 처리 완료 */
-            return;
-        }
-    }
-
-    /** Command Error(E2100) : 여기까지 왔으면 리스트에 없는 Command. 넌 큰일났다! */
     XBuffer_Clear(xSendMsg);
     XBuffer_AddCommandString(xSendMsg, parsedData->Command, NO_COMMA);
-    SetErrorCode(ERROR_CODE_INVALID_COMMAND);
-    XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
+
+    /* [1]. core 명령 실행 */
+    handled = ExecuteFromTable(gCoreCommandTable, gCoreCommandCount, parsedData, useTCP);
+
+    /* [2]. module 명령 실행 */
+    if (!handled)
+    {
+        handled = ExecuteFromTable(gModuleCommandTable, gModuleCommandCount, parsedData, useTCP);
+    }
+
+    //    if (!handled)
+    //    {
+    //        handled = ExecuteFromTable(gRobotCommandTable, gRobotCommandCount, parsedData, useTCP);
+    //    }
+
+    /* [3]. invalid 처리 */
+    if (!handled)
+    {
+        SetErrorCode(ERROR_CODE_INVALID_COMMAND, __func__, __LINE__);
+        XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
+    }
+
     XBuffer_End(xSendMsg);
-    SEND_MESSAGE(XBuffer_GetBuffer(xSendMsg), (uint16_t)XBuffer_Length(xSendMsg), useTCP);
+
+    /* [4]. 메시지 전송: 필터링 후 출력 */
+    if (!CMD_ShouldSkip_USBResponse(parsedData))
+    {
+        SEND_MESSAGE(XBuffer_GetBuffer(xSendMsg), (uint16_t)XBuffer_Length(xSendMsg), useTCP);
+    }
+
+    xSemaphoreGive(xMutex_Command);
 }
+
+void Handle_command_by_string(const char *cmdStr, U08 useTCP)
+{
+    teXParsingErrorCode result;
+    tsXParsedData *pData = NULL;
+
+    static char tempBuffer[BUFFER_SIZE_RX_MSG] = {0};
+
+    if (!cmdStr || cmdStr[0] == '\0')
+        return;
+
+    // [1]. \r\n 붙이기
+    CMD_MakeCommandWithCRLF(tempBuffer, sizeof(tempBuffer), cmdStr);
+
+    // [2] parser 대상 선택
+    switch (useTCP)
+    {
+    case COMM_RS232C:
+        pData = &xParsedData_RS232C;
+        break;
+    case COMM_TCP:
+        pData = &xParsedData_Network;
+        break;
+    case COMM_USB:
+        pData = &xParsedData_USB;
+        break;
+    default:
+        return;
+    }
+
+    // [3] 명령어 파싱 및 실행
+    result = xParser_ProcessReceivedData(tempBuffer, pData, useTCP);
+    if (result == PARSER_ERR_SUCCESS)
+    {
+        Handle_command(pData, useTCP);
+    }
+}
+
+void CMD_MakeCommandWithCRLF(char *dst, size_t dstSize, const char *src)
+{
+    if (!dst || !src || dstSize < 3) // 3-->최소: "\r\n\0"
+        return;
+
+    size_t len = 0;
+
+    while (src[len] != '\0' && len < (dstSize - 3))
+    {
+        dst[len] = src[len];
+        len++;
+    }
+
+    dst[len++] = '\r';
+    dst[len++] = '\n';
+    dst[len] = '\0';
+}
+
+bool CMD_ShouldSkip_USBResponse(const tsXParsedData *parsedData)
+{
+    // USB로 응답/에코 생략할 명령어 리스트, 필요에 따라 추가
+    static const char *noEchoOnUSB[] = {
+        "CLC", "TASK", "STACK", "?", "??", "??R", "FACT", "SAVEE", "LOADE", "PSTA"};
+
+    if (parsedData == NULL)
+        return false;
+
+    for (size_t i = 0; i < (sizeof(noEchoOnUSB) / sizeof(noEchoOnUSB[0])); i++)
+    {
+        if (strcmp(parsedData->Command, noEchoOnUSB[i]) == 0)
+            return true;
+    }
+
+    return false;
+}
+
 /**********************************************************************************************/
 /**********************************************************************************************/
 
@@ -218,34 +241,10 @@ void CMD_Handle_VERS(const tsXParsedData *parsedData, U08 useTCP)
     }
     else
     {
-        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT);
+        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT, __func__, __LINE__);
         XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
         if (parsedData->Params[0].value._int != '?')
             xParser_HandleError(__func__, PARSER_ERR_INVALID_CMD, 0); // The output is only though the USB port.
-    }
-}
-
-void CMD_Handle_MODEL(const tsXParsedData *parsedData, U08 useTCP)
-{
-    if (parsedData->ParamCount == 0)
-    {
-        XBuffer_AddString(xSendMsg, "System Type : ", NO_COMMA);
-        XBuffer_AddU08(xSendMsg, xSystemInfo.pl_systemType, COMMA);
-        XBuffer_AddString(xSendMsg, " Model Type : ", NO_COMMA);
-        XBuffer_AddU08(xSendMsg, xSystemInfo.pl_modelType, NO_COMMA);
-
-        xprintf("\r\n\t[System]"); // --> USB port , USER CODE
-        xprintf("\t  UNKNOWN = 0");
-        xprintf("\t  SYNTHESIZER_1  = 1");
-        xprintf("\t  SYNTHESIZER_2  = 2");
-        xprintf("\t  SYNTHESIZER_3  = 3");
-    }
-    else
-    {
-        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT);
-        XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
-        if (parsedData->Params[0].value._int != '?')
-            xParser_HandleError(__func__, PARSER_ERR_INVALID_CMD, 0);
     }
 }
 
@@ -257,94 +256,10 @@ void CMD_Handle_Get_FAS_IO_State(const tsXParsedData *parsedData, U08 useTCP)
     }
     else
     {
-        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT);
+        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT, __func__, __LINE__);
 
         XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
 
-        if (parsedData->Params[0].value._int != '?')
-            xParser_HandleError(__func__, PARSER_ERR_INVALID_CMD, 0);
-    }
-}
-
-void CMD_Handle_GSTA(const tsXParsedData *parsedData, U08 useTCP)
-{
-    if (parsedData->ParamCount == 0)
-    {
-        //  ==============================================================================
-        // default info.
-        /* [01] */ XBuffer_AddInt(xSendMsg, xSL.isBusy, COMMA); //= (!xServoA6.IsStop() && xDoor.IsStop())
-        /* [02] */ XBuffer_AddInt(xSendMsg, xServoA6.IsServoOn(), COMMA);
-        /* [03] */ XBuffer_AddInt(xSendMsg, xServoA6.IsHomed(), COMMA);
-        /* [04] */ XBuffer_AddInt(xSendMsg, IsError(), COMMA);
-        /* [05] */ XBuffer_AddString(xSendMsg, GetErrorCode_char(), COMMA);
-        /* [06] */ XBuffer_Addfloat(xSendMsg, xCD.ServoA6.CurrentSpeed.rpm, COMMA);
-        /* [07] */ XBuffer_AddInt(xSendMsg, xServoA6.GetPosition_SlotNum() + 1, COMMA);
-        /* [08] */ XBuffer_AddInt(xSendMsg, xSL.Door.Status, COMMA);
-        /* [09] */ XBuffer_AddInt(xSendMsg, xServoA6.IsDriverError(), COMMA); // debugging code.
-        /* [10] */ XBuffer_AddInt(xSendMsg, xServoA6.IsStop(), COMMA);        // debugging code.
-                                                                              // TODO: 여기부터, 냉장고 정보
-
-        /* [11] */ XBuffer_AddInt(xSendMsg, xCD.ServoA6.Centrifugal_Force, COMMA);           // debugging code.
-        /* [12] */ XBuffer_AddInt(xSendMsg, xCD.ServoA6.CentCommand.Time_sec_Remain, COMMA); // debugging code.
-        /* [13] */ XBuffer_Addfloat(xSendMsg, 0.0f, COMMA);                                  // temperature
-        /* [14] */ XBuffer_AddInt(xSendMsg, 0, COMMA);                                       // rsv.
-        /* [15] */ XBuffer_AddInt(xSendMsg, 0, COMMA);                                       // rsv.
-        /* [16] */ XBuffer_AddInt(xSendMsg, 0, COMMA);                                       // rsv.
-        /* [17] */ XBuffer_AddInt(xSendMsg, 0, COMMA);                                       // rsv.
-        /* [18] */ XBuffer_AddInt(xSendMsg, 0, COMMA);                                       // rsv.
-        /* [19] */ XBuffer_AddInt(xSendMsg, 0, COMMA);                                       // rsv.
-        /* [20] */ XBuffer_AddInt(xSendMsg, retryCount_RS485[0], NO_COMMA);                     // rsv. // 여기까지 냉장고 온도
-        //  ==============================================================================
-    }
-    else
-    {
-        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT);
-
-        XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
-
-        if (parsedData->Params[0].value._int != '?')
-            xParser_HandleError(__func__, PARSER_ERR_INVALID_CMD, 0);
-    }
-}
-
-// debugging code
-void CMD_Handle_PSTA(const tsXParsedData *parsedData, U08 useTCP)
-{
-    U08 i = 1;
-
-    if (parsedData->ParamCount == 0)
-    {
-        __newLine();
-        xcprintf(ANSI_TX_Yellow);
-        /*[ 1]*/ xprintf("\t[%2d] %6d : xSL.isBusy", i++, xSL.isBusy);
-        /*[ 2]*/ xprintf("\t[%2d] %6d : xServoA6.IsServoOn()", i++, xServoA6.IsServoOn());
-        /*[ 3]*/ xprintf("\t[%2d] %6d : xServoA6.IsHomed()", i++, xServoA6.IsHomed());
-        /*[ 4]*/ xprintf("\t[%2d] %6d : IsError()", i++, IsError());
-        /*[ 5]*/ xprintf("\t[%2d] %6s : error code.", i++, GetErrorCode_char());
-        xcprintf(ANSI_TX_Cyan);
-        /*[ 6]*/ xprintf("\t[%2d] %6.2f : xCD.ServoA6.CurrentSpeed.rpm", i++, xCD.ServoA6.CurrentSpeed.rpm);
-        /*[ 7]*/ xprintf("\t[%2d] %6d : xServoA6.GetPosition_SlotNum() + 1", i++, xServoA6.GetPosition_SlotNum() + 1);
-        /*[ 8]*/ xprintf("\t[%2d] %6d : xDoor.GetState(), 0:err, 1:moving, 2:closed, 3:open", i++, xDoor.GetState());
-        xcprintf(ANSI_TX_ORG);
-        /*[ 9]*/ xprintf("\t[%2d] %6d : xServoA6.IsDriverError()", i++, xServoA6.IsDriverError());
-        /*[10]*/ xprintf("\t[%2d] %6d : xServoA6.IsStop()", i++, xServoA6.IsStop());
-        /*[11]*/ xprintf("\t[%2d] %6d : xCD.ServoA6.Centrifugal_Force", i++, xCD.ServoA6.Centrifugal_Force);
-        /*[12]*/ xprintf("\t[%2d] %6d : xCD.ServoA6.CentCommand.Time_sec_Remain", i++, xCD.ServoA6.CentCommand.Time_sec_Remain);
-        xcprintf(ANSI_TX_Red);
-        /*[13]*/ xprintf("\t[%2d] %6d : rsv.", i++, 0);
-        /*[14]*/ xprintf("\t[%2d] %6d : rsv.", i++, 0);
-        /*[15]*/ xprintf("\t[%2d] %6d : rsv.", i++, 0);
-        /*[16]*/ xprintf("\t[%2d] %6d : rsv.", i++, 0);
-        /*[17]*/ xprintf("\t[%2d] %6d : rsv.", i++, 0);
-        /*[18]*/ xprintf("\t[%2d] %6d : rsv.", i++, 0);
-        /*[19]*/ xprintf("\t[%2d] %6d : rsv.", i++, 0);
-        /*[20]*/ xprintf("\t[%2d] %6d : rsv.", i++, 0);
-        xcprintf(ANSI_TX_ORG);
-    }
-    else
-    {
-        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT);
-        XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
         if (parsedData->Params[0].value._int != '?')
             xParser_HandleError(__func__, PARSER_ERR_INVALID_CMD, 0);
     }
@@ -359,7 +274,7 @@ void CMD_Handle_GERR(const tsXParsedData *parsedData, U08 useTCP)
     }
     else
     {
-        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT);
+        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT, __func__, __LINE__);
         XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
         if (parsedData->Params[0].value._int != '?')
             xParser_HandleError(__func__, PARSER_ERR_INVALID_CMD, 0);
@@ -374,7 +289,7 @@ void CMD_Handle_GERD(const tsXParsedData *parsedData, U08 useTCP)
     }
     else
     {
-        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT);
+        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT, __func__, __LINE__);
         XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
         if (parsedData->Params[0].value._int != '?')
             xParser_HandleError(__func__, PARSER_ERR_INVALID_CMD, 0);
@@ -393,14 +308,13 @@ void CMD_Handle_CLER(const tsXParsedData *parsedData, U08 useTCP)
         else
         {
             ClearError();
-
             // xPL.ServoA6.CMD_StartControl = YES;
             // xPL.ServoA6.CMD_ControlMode = A6_CONTROL_MODE_ERRCLEAR;
         }
     }
     else
     {
-        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT);
+        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT, __func__, __LINE__);
         XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
         if (parsedData->Params[0].value._int != '?')
             xParser_HandleError(__func__, PARSER_ERR_INVALID_CMD, 0);
@@ -412,12 +326,15 @@ void CMD_Handle_SAVEE(const tsXParsedData *parsedData, U08 useTCP)
     if (parsedData->ParamCount == 0)
     {
         XTimer_Stop();
+        // [YYMMDD] parameter를 EEPROM에 저장한 날짜 저장
+        xPL.Header.UpdateDate = SWRTC_GetTime_YYMMDDHH();
+
         EEPROMPL_SaveToEEPROM();
         XTimer_Start();
     }
     else
     {
-        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT);
+        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT, __func__, __LINE__);
         XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
         if (parsedData->Params[0].value._int != '?')
             xParser_HandleError(__func__, PARSER_ERR_INVALID_CMD, 0);
@@ -434,7 +351,7 @@ void CMD_Handle_SAVEF(const tsXParsedData *parsedData, U08 useTCP)
     }
     else
     {
-        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT);
+        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT, __func__, __LINE__);
         XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
         if (parsedData->Params[0].value._int != '?')
             xParser_HandleError(__func__, PARSER_ERR_INVALID_CMD, 0);
@@ -446,12 +363,15 @@ void CMD_Handle_SAVEA(const tsXParsedData *parsedData, U08 useTCP)
     if (parsedData->ParamCount == 0)
     {
         XTimer_Stop();
+        // [YYMMDD] parameter를 EEPROM에 저장한 날짜 저장
+        xPL.Header.UpdateDate = SWRTC_GetTime_YYMMDDHH();
+
         EEPROMPL_SaveToEEPROMandFlash();
         XTimer_Start();
     }
     else
     {
-        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT);
+        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT, __func__, __LINE__);
         XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
         if (parsedData->Params[0].value._int != '?')
             xParser_HandleError(__func__, PARSER_ERR_INVALID_CMD, 0);
@@ -469,7 +389,7 @@ void CMD_Handle_LOADE(const tsXParsedData *parsedData, U08 useTCP)
     }
     else
     {
-        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT);
+        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT, __func__, __LINE__);
         XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
         if (parsedData->Params[0].value._int != '?')
             xParser_HandleError(__func__, PARSER_ERR_INVALID_CMD, 0);
@@ -486,7 +406,7 @@ void CMD_Handle_LOADF(const tsXParsedData *parsedData, U08 useTCP)
     }
     else
     {
-        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT);
+        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT, __func__, __LINE__);
         XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
         if (parsedData->Params[0].value._int != '?')
             xParser_HandleError(__func__, PARSER_ERR_INVALID_CMD, 0);
@@ -505,7 +425,7 @@ void CMD_Handle_LOADC(const tsXParsedData *parsedData, U08 useTCP)
     }
     else
     {
-        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT);
+        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT, __func__, __LINE__);
         XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
         if (parsedData->Params[0].value._int != '?')
             xParser_HandleError(__func__, PARSER_ERR_INVALID_CMD, 0);
@@ -526,7 +446,7 @@ void CMD_Handle_FACTORY(const tsXParsedData *parsedData, U08 useTCP)
     }
     else
     {
-        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT);
+        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT, __func__, __LINE__);
         XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
         if (parsedData->Params[0].value._int != '?')
             xParser_HandleError(__func__, PARSER_ERR_INVALID_CMD, 0);
@@ -543,7 +463,7 @@ void CMD_Handle_PrintParams(const tsXParsedData *parsedData, U08 useTCP)
     }
     else
     {
-        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT);
+        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT, __func__, __LINE__);
         XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
         if (parsedData->Params[0].value._int != '?')
             xParser_HandleError(__func__, PARSER_ERR_INVALID_CMD, 0);
@@ -564,7 +484,7 @@ void CMD_Handle_DI(const tsXParsedData *parsedData, U08 useTCP)
     }
     else
     {
-        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT);
+        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT, __func__, __LINE__);
         XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
         if (parsedData->Params[0].value._int != '?')
             xParser_HandleError(__func__, PARSER_ERR_INVALID_CMD, 0);
@@ -643,7 +563,7 @@ void CMD_Handle_DO(const tsXParsedData *parsedData, U08 useTCP)
         }
         else
         {
-            SetErrorCode(ERROR_CODE_INVALID_ARGUMENT);
+            SetErrorCode(ERROR_CODE_INVALID_ARGUMENT, __func__, __LINE__);
             XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
             if (parsedData->Params[0].value._int != '?')
                 xParser_HandleError(__func__, PARSER_ERR_INVALID_CMD, 0);
@@ -666,7 +586,7 @@ void CMD_Handle_DO(const tsXParsedData *parsedData, U08 useTCP)
         }
         else
         {
-            SetErrorCode(ERROR_CODE_INVALID_ARGUMENT);
+            SetErrorCode(ERROR_CODE_INVALID_ARGUMENT, __func__, __LINE__);
             XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
             if (parsedData->Params[0].value._int != '?')
                 xParser_HandleError(__func__, PARSER_ERR_INVALID_CMD, 0);
@@ -674,7 +594,7 @@ void CMD_Handle_DO(const tsXParsedData *parsedData, U08 useTCP)
     }
     else
     {
-        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT);
+        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT, __func__, __LINE__);
         XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
         if (parsedData->Params[0].value._int != '?')
             xParser_HandleError(__func__, PARSER_ERR_INVALID_CMD, 0);
@@ -767,7 +687,7 @@ void CMD_Handle_DebugMode(const tsXParsedData *parsedData, U08 useTCP)
     }
     else
     {
-        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT);
+        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT, __func__, __LINE__);
         XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
 
         ERR_MSG_SEND("Oops!~ Invalid Command format.");
@@ -791,7 +711,7 @@ void CMD_Handle_GetSize(const tsXParsedData *parsedData, U08 useTCP)
     }
     else
     {
-        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT);
+        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT, __func__, __LINE__);
         XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
 
         if (parsedData->Params[0].value._int != '?')
@@ -1176,7 +1096,7 @@ void CMD_Handle_SetIP(const tsXParsedData *parsedData, U08 useTCP)
     }
     else
     {
-        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT);
+        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT, __func__, __LINE__);
         XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
         if (parsedData->Params[0].value._int != '?')
             xParser_HandleError(__func__, PARSER_ERR_INVALID_CMD, 0);
@@ -1191,7 +1111,7 @@ void CMD_Handle_TaskList(const tsXParsedData *parsedData, U08 useTCP)
     }
     else
     {
-        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT);
+        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT, __func__, __LINE__);
         XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
         if (parsedData->Params[0].value._int != '?')
             xParser_HandleError(__func__, PARSER_ERR_INVALID_CMD, 0);
@@ -1207,37 +1127,131 @@ void CMD_Handle_StackSize(const tsXParsedData *parsedData, U08 useTCP)
     }
     else
     {
-        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT);
+        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT, __func__, __LINE__);
         XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
         if (parsedData->Params[0].value._int != '?')
             xParser_HandleError(__func__, PARSER_ERR_INVALID_CMD, 0);
     }
 }
 
+bool CMD_CheckParamAll_Int(const tsXParsedData *parsedData, int expectedCount)
+{
+    if (parsedData == NULL)
+        return false;
+
+    if (parsedData->ParamCount != expectedCount)
+        return false;
+
+    for (int i = 0; i < expectedCount; i++)
+    {
+        if (parsedData->Params[i].type != PARAM_TYPE_INT)
+            return false;
+    }
+
+    return true;
+}
+
+bool CMD_CheckParamAll_Float(const tsXParsedData *parsedData, int expectedCount)
+{
+    if (parsedData == NULL)
+        return false;
+
+    if (parsedData->ParamCount != expectedCount)
+        return false;
+
+    for (int i = 0; i < expectedCount; i++)
+    {
+        if (parsedData->Params[i].type != PARAM_TYPE_FLOAT)
+            return false;
+    }
+
+    return true;
+}
+
+__attribute__ ((unused)) static void CLI_GetMaxHelpWidth(void)
+{
+    int max = 0;
+
+    // 명령어 이름 최대 길이 구하기
+    //    for (int i = 0; i < gRobotCommandCount; i++)
+    //    {
+    //        int len = strlen(gRobotCommandTable[i].Command);
+    //        if (len > max)
+    //            max = len;
+    //    }
+
+    for (int i = 0; i < gModuleCommandCount; i++)
+    {
+        int len = strlen(gModuleCommandTable[i].Command);
+        if (len > max)
+            max = len;
+    }
+
+    for (int i = 0; i < gCoreCommandCount; i++)
+    {
+        int len = strlen(gCoreCommandTable[i].Command);
+        if (len > max)
+            max = len;
+    }
+    gWidth_Command = max + 2;
+
+    // 명령어 설명 최대 길이 구하기
+    max = 0;
+
+    for (int i = 0; i < gModuleCommandCount; i++)
+    {
+        int len = strlen(gModuleCommandTable[i].Help);
+        if (len > max)
+            max = len;
+    }
+
+    for (int i = 0; i < gCoreCommandCount; i++)
+    {
+        int len = strlen(gCoreCommandTable[i].Help);
+        if (len > max)
+            max = len;
+    }
+    gWidth_Help = max + 2; // 여유 공간 2칸 추가
+}
+
 void CMD_Handle_Help_All(const tsXParsedData *parsedData, U08 useTCP)
 {
+    int i, k = 0;
+
     if (useTCP == COMM_USB)
     {
         LOG_MSG_SEND("[Available Commands]\n");
-        xcprintf("\t    %-10s  %-25s\t%-s\r\n", "[Command]", "[Desctiption]", "[Example]");
-        xcprintf("\t-------------------------------------------------------------\r\n");
+        xcprintf("\t    %-*s  %-*s\t%-s\r\n", gWidth_Command, "[Command]", gWidth_Help, "[Desctiption]", "[Example]");
+        xcprintf("\t-------------------------------------------------------------------\r\n");
 
-        for (int i = 0; i < sizeof(commandTable) / sizeof(tsXCommandMapping); i++)
+        for (i = 0; i < gModuleCommandCount; i++)
         {
-            xcprintf("\t[%2d] [%d] " ANSI_TX_Yellow "%-8s" ANSI_TX_ORG ": %-23s\tex) %s\r\n\0",
-                     i + 1,
-                     commandTable[i].CommandType,
-                     commandTable[i].Command,
-                     commandTable[i].Help,
-                     commandTable[i].exHelp);
+            k++;
+            xcprintf("\t[%2d] [%d] " ANSI_TX_LightGreen "%-*s" ANSI_TX_ORG ": %-*s  : ex) %s\r\n",
+                     k,
+                     gModuleCommandTable[i].CommandType,
+                     gWidth_Command,
+                     gModuleCommandTable[i].Command,
+                     gWidth_Help,
+                     gModuleCommandTable[i].Help,
+                     gModuleCommandTable[i].exHelp);
         }
 
-        xcprintf("\r\n");
-    }
-    else
-    {
-        SetErrorCode(ERROR_CODE_INVALID_COMMAND);
-        XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
+        for (i = 0; i < gCoreCommandCount; i++)
+        {
+            k++;
+            xcprintf("\t[%2d] [%d] " ANSI_TX_Yellow "%-*s" ANSI_TX_ORG ": %-*s  : ex) %s\r\n",
+                     k,
+                     gCoreCommandTable[i].CommandType,
+                     gWidth_Command,
+                     gCoreCommandTable[i].Command,
+                     gWidth_Help,
+                     gCoreCommandTable[i].Help,
+                     gCoreCommandTable[i].exHelp);
+        }
+
+        xcprintf("\t-------------------------------------------------------------------\r\n");
+        // xcprintf("\r\n");
     }
 }
 
@@ -1247,581 +1261,66 @@ void CMD_Handle_Help(const tsXParsedData *parsedData, U08 useTCP)
     if (useTCP == COMM_USB)
     {
         LOG_MSG_SEND("[Available Commands]\n");
-        xcprintf("\t    %-10s  %-25s\t%-s\r\n", "[Command]", "[Desctiption]", "[Example]\0");
-        xcprintf("\t-------------------------------------------------------------\r\n");
+        xcprintf("\t    %-*s  %-*s\t%-s\r\n", gWidth_Command, "[Command]", gWidth_Help, "[Desctiption]", "[Example]");
+        xcprintf("\t-------------------------------------------------------------------\r\n");
 
-        for (int i = 0; i < sizeof(commandTable) / sizeof(tsXCommandMapping); i++)
+        for (int i = 0; i < gModuleCommandCount; i++)
         {
-            if (commandTable[i].CommandType == CLI_COMMAND_SYSTEM) // system 명령만 출력한다.
+            if (gModuleCommandTable[i].CommandType == CLI_COMMAND_SYSTEM) // system 명령만 출력한다.
             {
                 k++;
-                xcprintf("\t[%2d] " ANSI_TX_Yellow "%-9s" ANSI_TX_ORG ": %-25s\tex) %s\r\n\0",
+                xcprintf("\t[%2d] " ANSI_TX_LightGreen "%-*s" ANSI_TX_ORG ": %-*s  : ex) %s\r\n",
                          k,
-                         commandTable[i].Command,
-                         commandTable[i].Help,
-                         commandTable[i].exHelp);
+                         gWidth_Command,
+                         gModuleCommandTable[i].Command,
+                         gWidth_Help,
+                         gModuleCommandTable[i].Help,
+                         gModuleCommandTable[i].exHelp);
             }
         }
-        xcprintf("\r\n");
-    }
-    else
-    {
-        SetErrorCode(ERROR_CODE_INVALID_COMMAND);
-        XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
+
+        for (int i = 0; i < gCoreCommandCount; i++)
+        {
+            if (gCoreCommandTable[i].CommandType == CLI_COMMAND_SYSTEM) // system 명령만 출력한다.
+            {
+                k++;
+                xcprintf("\t[%2d] " ANSI_TX_Yellow "%-*s" ANSI_TX_ORG ": %-*s  : ex) %s\r\n",
+                         k,
+                         gWidth_Command,
+                         gCoreCommandTable[i].Command,
+                         gWidth_Help,
+                         gCoreCommandTable[i].Help,
+                         gCoreCommandTable[i].exHelp);
+            }
+        }
+
+        xcprintf("\t-------------------------------------------------------------------\r\n");
+        // xcprintf("\r\n");
     }
 }
 
 void CMD_ShowCommandHelp(const tsXParsedData *parsedData)
 {
-    for (int i = 0; i < sizeof(commandTable) / sizeof(tsXCommandMapping); i++)
+    for (int i = 0; i < gModuleCommandCount; i++)
     {
-        if (strcmp(parsedData->Command, commandTable[i].Command) == 0)
+        if (strcmp(parsedData->Command, gModuleCommandTable[i].Command) == 0)
         {
-            xprintf(ANSI_TX_Yellow "\t%-8s" ANSI_TX_ORG ": %-25s\tex) %s\r\n\0",
-                    commandTable[i].Command,
-                    commandTable[i].Help,
-                    commandTable[i].exHelp);
+            xprintf(ANSI_TX_LightGreen "\t%-8s" ANSI_TX_ORG ": %-23s\tex) %s\r\n",
+                    gModuleCommandTable[i].Command,
+                    gModuleCommandTable[i].Help,
+                    gModuleCommandTable[i].exHelp);
+            return;
         }
     }
-}
 
-//======================================================================================
-//======================================================================================
-//======================================================================================
-//======================================================================================
-//======================================================================================
-//======================================================================================
-//======================================================================================
-//======================================================================================
-// @USER CORD START
-//======================================================================================
-//======================================================================================
-//======================================================================================
-//======================================================================================
-//======================================================================================
-//======================================================================================
-//======================================================================================
-//======================================================================================
-// 장비 점검용 명령
-
-void CMD_Handle_Test_LongRun(const tsXParsedData *parsedData, U08 useTCP)
-{
-    if (parsedData->ParamCount == 0)
+    for (int i = 0; i < gCoreCommandCount; i++)
     {
-        //     xTest.CMD_StartControl = YES;
-        //     xTest.TestMode = MODE_TEST_STOP;
-    }
-    else if (parsedData->ParamCount == 1)
-    {
-        // int c = parsedData->Params[0].value._int;
-
-        // if (c == '?')
-        // {
-        //     int i = 1;
-        //     __newLine();
-        //     xprintf("\t== LR <mode> Command ==");
-        //     xprintf("\t  %d) mode = 1 : TY-Motion long-run test", i++);
-        //     xprintf("\t  %d) mode = 2 : RobotDoor long-run test", i++);
-        //     xprintf("\t  %d) mode = 99 : RobotDoor long-run test", i++);
-        // }
-        // else if (c == 1) // robot-TY
-        // {
-        //     xTest.CMD_StartControl = YES;
-        //     xTest.TestMode = MODE_TEST_ROBOT_TY;
-        // }
-        // else if (c == 2) // robot-door
-        // {
-        //     xTest.CMD_StartControl = YES;
-        //     xTest.TestMode = MODE_TEST_ROBOTDOOR;
-        // }
-        // else if (c == 999)
-        // {
-        //     xTest.CMD_StartControl = YES;
-        //     xTest.TestMode = MODE_TEST_STOP;
-
-        //     xPL.RobotTY.CMD_StartControl = YES;
-        //     xPL.RobotTY.ControlMode = MODE_ROBOT_STOP;
-        // }
-        // else
-        // {
-        //     SetErrorCode(ERROR_CODE_INVALID_ARGUMENT);
-        //     XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
-        // }
-    }
-    else
-    {
-        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT);
-        XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
-        if (parsedData->Params[0].value._int != '?' && useTCP == COMM_USB)
-            xParser_HandleError(__func__, PARSER_ERR_INVALID_CMD, 0);
-    }
-}
-
-void CMD_Handle_MRDO(const tsXParsedData *parsedData, U08 useTCP)
-{
-    if (parsedData->ParamCount == 1)
-    {
-        int command = parsedData->Params[0].value._int;
-
-        if (command == '?')
+        if (strcmp(parsedData->Command, gCoreCommandTable[i].Command) == 0)
         {
-            __newLine();
-            xprintf("\t== MRDO <open=1, close=0> ==");
-            xprintf("\t  MRDO 0  : CLOSE");
-            xprintf("\t  MRDO 1  : OPEN");
-            xprintf("\t  MRDO 2  : STOP");
+            xprintf(ANSI_TX_LightYellow "\t%-8s" ANSI_TX_ORG ": %-23s\tex) %s\r\n",
+                    gCoreCommandTable[i].Command,
+                    gCoreCommandTable[i].Help,
+                    gCoreCommandTable[i].exHelp);
         }
-        else if (command >= ROBOTDOOR_COMMAND_CLOSE && command <= ROBOTDOOR_COMMAND_STOP)
-        {
-            if (SDG_RobotDoor_CheckError(command))
-            {
-                XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
-            }
-            else
-            {
-                xPL.Door.CMD_StartControl = YES;
-                xPL.Door.TargetMotion = command;
-            }
-        }
-        else
-        {
-            SetErrorCode(ERROR_CODE_INVALID_ARGUMENT);
-            XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
-        }
-    }
-    else
-    {
-        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT);
-        XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
-        if (parsedData->Params[0].value._int != '?')
-            xParser_HandleError(__func__, PARSER_ERR_INVALID_CMD, 0);
-    }
-}
-
-void CMD_Handle_ORG(const tsXParsedData *parsedData, U08 useTCP)
-{
-    if (parsedData->ParamCount == 0)
-    {
-        if (SDG_ServoA6_CheckError((int)A6_CONTROL_MODE_ORG))
-        {
-            XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
-        }
-        else
-        {
-            xPL.ServoA6.CMD_StartControl = YES;
-            xPL.ServoA6.CMD_ControlMode = A6_CONTROL_MODE_ORG;
-        }
-    }
-    else
-    {
-        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT);
-        XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
-        if (parsedData->Params[0].value._int != '?')
-            xParser_HandleError(__func__, PARSER_ERR_INVALID_CMD, 0);
-    }
-}
-
-void CMD_Handle_HOME(const tsXParsedData *parsedData, U08 useTCP)
-{
-    if (parsedData->ParamCount == 0)
-    {
-        if (SDG_ServoA6_CheckError((int)A6_CONTROL_MODE_HOME))
-        {
-            XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
-        }
-        else
-        {
-            xPL.ServoA6.CMD_StartControl = YES;
-            xPL.ServoA6.CMD_ControlMode = A6_CONTROL_MODE_HOME;
-        }
-    }
-    else
-    {
-        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT);
-        XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
-        if (parsedData->Params[0].value._int != '?')
-            xParser_HandleError(__func__, PARSER_ERR_INVALID_CMD, 0);
-    }
-}
-
-void CMD_Handle_CENT(const tsXParsedData *parsedData, U08 useTCP)
-{
-    float rpm;   //
-    U32 runTime; // [sec] --> T2
-    // U32 totalTime; // [sec] --> T1 + T2 + T3
-
-    if (parsedData->ParamCount == 2)
-    {
-        if (parsedData->Params[0].type == PARAM_TYPE_INT)
-            rpm = (float)parsedData->Params[0].value._int;
-        else
-            rpm = parsedData->Params[0].value._float;
-
-        runTime = parsedData->Params[1].value._int;
-
-        if (SDG_ServoA6_CheckError((int)A6_CONTROL_MODE_CENT))
-        {
-            XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
-        }
-        else if (xDoor.IsOpen())
-        {
-            SetErrorCode(ERROR_CODE_CENT_BLOCKED_DOOR_OPEN);
-            XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
-        }
-        else if (!xServoA6.IsHomed())
-        {
-            SetErrorCode(ERROR_CODE_A6_SERVO_NOT_HOME);
-            XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
-        }
-        else
-        {
-            xPL.ServoA6.CMD_StartControl = YES;
-            xPL.ServoA6.CMD_ControlMode = A6_CONTROL_MODE_CENT;
-            xPL.ServoA6.CMD_Param.Cent.Speed_rpm = rpm;
-            xPL.ServoA6.CMD_Param.Cent.Time_sec = runTime;
-
-            xCD.ServoA6.CentCommand.rpm = (F32)rpm;
-            xCD.ServoA6.CentCommand.Time_msec_Run = runTime * 1000;
-        }
-    }
-    else
-    {
-        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT);
-        XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
-        if (parsedData->Params[0].value._int != '?')
-            xParser_HandleError(__func__, PARSER_ERR_INVALID_CMD, 0);
-    }
-}
-
-// move to slot
-void CMD_Handle_MOVS(const tsXParsedData *parsedData, U08 useTCP)
-{
-    int slotNum;
-
-    if (parsedData->ParamCount == 1)
-    {
-        slotNum = parsedData->Params[0].value._int - 1;
-
-        if (SDG_ServoA6_CheckError((int)A6_CONTROL_MODE_SLOT))
-        {
-            XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
-        }
-        // 유지보수를 위해 도어가 열려 있어도 실행되어야 함.
-        // else if (xDoor.IsOpen())
-        // {
-        //     SetErrorCode(ERROR_CODE_CENT_BLOCKED_DOOR_OPEN);
-        //     XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
-        // }
-        else if (!(SLOT_1 <= slotNum && slotNum <= SLOT_6))
-        {
-            SetErrorCode(ERROR_CODE_INVALID_ARGUMENT);
-            XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
-        }
-        else
-        {
-            xPL.ServoA6.CMD_StartControl = YES;
-            xPL.ServoA6.CMD_ControlMode = A6_CONTROL_MODE_SLOT;
-            xPL.ServoA6.CMD_Param.SlotNum = slotNum;
-        }
-    }
-    else
-    {
-        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT);
-        XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
-        if (parsedData->Params[0].value._int != '?')
-            xParser_HandleError(__func__, PARSER_ERR_INVALID_CMD, 0);
-    }
-}
-
-void CMD_Handle_RESET(const tsXParsedData *parsedData, U08 useTCP)
-{
-    if (parsedData->ParamCount == 0)
-    {
-        xPL.ServoA6.CMD_StartControl = YES;
-        xPL.ServoA6.CMD_ControlMode = A6_CONTROL_MODE_RESET;
-    }
-    else
-    {
-        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT);
-        XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
-        if (parsedData->Params[0].value._int != '?')
-            xParser_HandleError(__func__, PARSER_ERR_INVALID_CMD, 0);
-    }
-}
-
-void CMD_Handle_SERV(const tsXParsedData *parsedData, U08 useTCP)
-{
-    int onOff;
-
-    if (parsedData->ParamCount == 1)
-    {
-        onOff = parsedData->Params[0].value._int;
-
-        if (onOff != OFF && onOff != ON)
-        {
-            SetErrorCode(ERROR_CODE_INVALID_ARGUMENT);
-            XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
-        }
-        else
-        {
-            xPL.ServoA6.CMD_StartControl = YES;
-
-            if (onOff == ON)
-                xPL.ServoA6.CMD_ControlMode = A6_CONTROL_MODE_ENABLE;
-            else
-                xPL.ServoA6.CMD_ControlMode = A6_CONTROL_MODE_DISABLE;
-        }
-    }
-    else
-    {
-        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT);
-        XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
-        if (parsedData->Params[0].value._int != '?')
-            xParser_HandleError(__func__, PARSER_ERR_INVALID_CMD, 0);
-    }
-}
-
-void CMD_Handle_STOP(const tsXParsedData *parsedData, U08 useTCP)
-{
-    if (parsedData->ParamCount == 0)
-    {
-        xPL.Door.CMD_StartControl = YES;
-        xPL.Door.TargetMotion = ROBOTDOOR_COMMAND_STOP;
-
-        xPL.ServoA6.CMD_StartControl = YES;
-        xPL.ServoA6.CMD_ControlMode = A6_CONTROL_MODE_STOP;
-    }
-    else
-    {
-        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT);
-        XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
-        if (parsedData->Params[0].value._int != '?')
-            xParser_HandleError(__func__, PARSER_ERR_INVALID_CMD, 0);
-    }
-}
-
-void CMD_Handle_ESTOP(const tsXParsedData *parsedData, U08 useTCP)
-{
-    if (parsedData->ParamCount == 0)
-    {
-        xPL.ServoA6.CMD_StartControl = YES;
-        xPL.ServoA6.CMD_ControlMode = A6_CONTROL_MODE_ESTOP;
-    }
-    else
-    {
-        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT);
-        XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
-        if (parsedData->Params[0].value._int != '?')
-            xParser_HandleError(__func__, PARSER_ERR_INVALID_CMD, 0);
-    }
-}
-
-// set auto-slot-position: 슬롯 티칭할때 사용됨.
-void CMD_Handle_SASP(const tsXParsedData *parsedData, U08 useTCP)
-{
-    if (parsedData->ParamCount == 0)
-    {
-        long offset = xCD.ServoA6.CurrentPosition.Pulse;
-
-        FOR_ALL_SLOT
-        {
-            xPL.ServoA6.Slot.PositionOffset_pulse[i] = offset;
-        }
-
-        xPL.ServoA6.Home.Offset = xPL.ServoA6.Slot.PositionOffset_pulse[SLOT_1];
-
-        // [주의] RAM 에만 반영됨.. 티칭후 save 해야함.
-    }
-    else
-    {
-        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT);
-        XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
-        if (parsedData->Params[0].value._int != '?')
-            xParser_HandleError(__func__, PARSER_ERR_INVALID_CMD, 0);
-    }
-}
-
-void CMD_Handle_JOGS(const tsXParsedData *parsedData, U08 useTCP)
-{
-    if (parsedData->ParamCount == 1)
-    {
-        //        bool dir = (parsedData->Params[0].value._int != 0);
-        int pulse = parsedData->Params[0].value._int;
-
-        if (SDG_ServoA6_CheckError((int)A6_CONTROL_MODE_JOG))
-        {
-            XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
-        }
-        else
-        {
-            xPL.ServoA6.CMD_StartControl = YES;
-            xPL.ServoA6.CMD_ControlMode = A6_CONTROL_MODE_JOG;
-            //            xPL.ServoA6.CMD_Param.Direction = (dir) ? (int)CW : (int)CCW;
-            xPL.ServoA6.CMD_Param.Position_Pulse = pulse;
-        }
-    }
-    else
-    {
-        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT);
-        XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
-        if (parsedData->Params[0].value._int != '?')
-            xParser_HandleError(__func__, PARSER_ERR_INVALID_CMD, 0);
-    }
-}
-
-void CMD_Handle_GPOS(const tsXParsedData *parsedData, U08 useTCP)
-{
-    if (parsedData->ParamCount == 0)
-    {
-        XBuffer_AddInt(xSendMsg, (int)xCD.ServoA6.CurrentPosition.SlotNum, COMMA);
-        XBuffer_AddInt(xSendMsg, (int)xCD.ServoA6.CurrentPosition.Pulse, NO_COMMA);
-    }
-    else
-    {
-        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT);
-        XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
-        if (parsedData->Params[0].value._int != '?')
-            xParser_HandleError(__func__, PARSER_ERR_INVALID_CMD, 0);
-    }
-}
-
-void CMD_Handle_STIME(const tsXParsedData *parsedData, U08 useTCP)
-{
-    if (parsedData->ParamCount == 0)
-    {
-        XBuffer_AddInt(xSendMsg, xPL.Door.CloseSensorOverTime_ms, COMMA);
-        XBuffer_AddInt(xSendMsg, xPL.Door.OpenSensorOverTime_ms, NO_COMMA);
-    }
-    else if (parsedData->ParamCount == 2)
-    {
-        int openClose = parsedData->Params[0].value._int;
-        int delayTime_msec = parsedData->Params[1].value._int;
-
-        if (openClose == CLOSE)
-        {
-            xPL.Door.CloseSensorOverTime_ms = delayTime_msec;
-        }
-        else if (openClose == OPEN)
-        {
-            xPL.Door.OpenSensorOverTime_ms = delayTime_msec;
-        }
-        else
-        {
-            SetErrorCode(ERROR_CODE_INVALID_ARGUMENT);
-            XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
-        }
-    }
-    else
-    {
-        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT);
-        XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
-        if (parsedData->Params[0].value._int != '?')
-            xParser_HandleError(__func__, PARSER_ERR_INVALID_CMD, 0);
-    }
-}
-
-void CMD_Handle_ENABLE(const tsXParsedData *parsedData, U08 useTCP)
-{
-    if (parsedData->ParamCount == 0)
-    {
-        xPL.ServoA6.CMD_StartControl = YES;
-        xPL.ServoA6.CMD_ControlMode = A6_CONTROL_MODE_ENABLE;
-
-        xDoor.Motor.Enable();
-    }
-    else
-    {
-        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT);
-        XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
-        if (parsedData->Params[0].value._int != '?')
-            xParser_HandleError(__func__, PARSER_ERR_INVALID_CMD, 0);
-    }
-}
-
-void CMD_Handle_DISABLE(const tsXParsedData *parsedData, U08 useTCP)
-{
-    if (parsedData->ParamCount == 0)
-    {
-        xPL.ServoA6.CMD_StartControl = YES;
-        xPL.ServoA6.CMD_ControlMode = A6_CONTROL_MODE_DISABLE;
-
-        xDoor.Motor.Disable();
-    }
-    else
-    {
-        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT);
-        XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
-        if (parsedData->Params[0].value._int != '?')
-            xParser_HandleError(__func__, PARSER_ERR_INVALID_CMD, 0);
-    }
-}
-
-void CMD_Handle_SAVEA6(const tsXParsedData *parsedData, U08 useTCP)
-{
-    if (parsedData->ParamCount == 0)
-    {
-        XTimer_Stop();
-        xServoA6.Set_Param_Home();
-        PanasonicA6_EEPROM_Write(A6_ID);
-        XTimer_Start();
-    }
-    else
-    {
-        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT);
-        XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
-        if (parsedData->Params[0].value._int != '?')
-            xParser_HandleError(__func__, PARSER_ERR_INVALID_CMD, 0);
-    }
-}
-
-void CMD_Handle_MOVA(const tsXParsedData *parsedData, U08 useTCP)
-{
-    if (parsedData->ParamCount == 1)
-    {
-        int pulse = parsedData->Params[0].value._int;
-
-        if (SDG_ServoA6_CheckError((int)A6_CONTROL_MODE_ABS))
-        {
-            XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
-        }
-        else
-        {
-            xPL.ServoA6.CMD_StartControl = YES;
-            xPL.ServoA6.CMD_ControlMode = A6_CONTROL_MODE_ABS;
-            xPL.ServoA6.CMD_Param.Position_Pulse = pulse;
-        }
-    }
-    else
-    {
-        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT);
-        XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
-        if (parsedData->Params[0].value._int != '?')
-            xParser_HandleError(__func__, PARSER_ERR_INVALID_CMD, 0);
-    }
-}
-
-void CMD_Handle_MOVI(const tsXParsedData *parsedData, U08 useTCP)
-{
-    if (parsedData->ParamCount == 1)
-    {
-        int pulse = parsedData->Params[0].value._int;
-
-        if (SDG_ServoA6_CheckError((int)A6_CONTROL_MODE_REL))
-        {
-            XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
-        }
-        else
-        {
-            xPL.ServoA6.CMD_StartControl = YES;
-            xPL.ServoA6.CMD_ControlMode = A6_CONTROL_MODE_REL;
-            xPL.ServoA6.CMD_Param.Position_Pulse = pulse;
-        }
-    }
-    else
-    {
-        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT);
-        XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
-        if (parsedData->Params[0].value._int != '?')
-            xParser_HandleError(__func__, PARSER_ERR_INVALID_CMD, 0);
     }
 }

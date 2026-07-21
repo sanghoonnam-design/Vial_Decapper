@@ -15,7 +15,7 @@
 #include "XDebug.h"
 #include "XDebug_User.h"
 #include "HW_Serial.h"
-#include "_10_XCommandHandling.h"
+#include "_10_XCommand_Core.h"
 #include "_04_XDiagnose.h"
 #include "XParser.h"
 #include "XEEPROMParam.h"
@@ -529,6 +529,8 @@ bool CLI_HandleSave(char c)
     {
         //        xPL.Header.UpdateDate = GetCurrentDate();
         xprintf("..........."); // delay
+        // [YYMMDD] parameter를 EEPROM에 저장한 날짜 저장
+        xPL.Header.UpdateDate = SWRTC_GetTime_YYMMDDHH();
         EEPROMPL_SaveToEEPROM();
     }
     else

@@ -10,7 +10,7 @@
 #include "XSystemInfo.h"
 #include "XStateMachine.h"
 #include "XErrorCode.h"
-#include "_10_XCommandHandling.h"
+#include "_10_XCommand_Core.h"
 #include "_01_HW_and_Device.h"
 
 tsXTest xTest;

@@ -5,7 +5,7 @@
  *      Author: RND. Kang PilSoon.
  ******************************************************************************/
 #include "_10_XNetworkMsg_Process.h"
-#include "_10_XCommandHandling.h"
+#include "_10_XCommand_Core.h"
 #include "XParser.h"
 #include "XErrorCode.h"
 
@@ -126,7 +126,7 @@ void Network_MsgProcess(int MsgId, int MsgLength, char *pData)
                 Handle_command(&xParsedData_Network, COMM_TCP);
                 if (gCurrentError.severity == _INFO || gCurrentError.severity == _WARNING)
                 {
-                    SetErrorCode(ERROR_CODE_NONE);
+                    SetErrorCode(ERROR_CODE_NONE, __func__, __LINE__);
                 }
                 else
                 {
@@ -150,7 +150,7 @@ void Network_MsgProcess(int MsgId, int MsgLength, char *pData)
      */
     if (handled == 0 || start < MsgLength)
     {
-        SetErrorCode(ERROR_CODE_INVALID_COMMAND);
+        SetErrorCode(ERROR_CODE_INVALID_COMMAND, __func__, __LINE__);
     }
 }
 #endif

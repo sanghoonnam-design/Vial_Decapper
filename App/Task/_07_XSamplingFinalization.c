@@ -27,11 +27,12 @@ VOID TASK_SamplingFinalization(void *pvParameters)
         if (xSemaphoreTake(semHD_SFZ, RTOS_WAIT_FOREVER) == pdTRUE)
         {
             __TASK_TRIGGER_START_Using(TEST_PORT_1, TP_IDX_taskSFZ);
-            startTick = ITIMER_StartMeasure_us();
             //==================================================================
+            startTick = ITIMER_StartMeasure_us();
             __xTaskStatus[TP_IDX_taskSFZ] = true;
             if (xSystemInfo.PL_Get_FW_Mode() == FW_MODE_IDLE)
             {
+                gTick_SFZ = ITIMER_StopMeasure_us(startTick);
                 __TASK_TRIGGER_END_Using(TEST_PORT_1, TP_IDX_taskSFZ);
                 continue;
             }
@@ -45,13 +46,11 @@ VOID TASK_SamplingFinalization(void *pvParameters)
             __xTime_After(__2sec)
             {
                 __xTime_Per(__100msec){
-                   xServoA6.Update_RS485_Tx();
+                 //  xServoA6.Update_RS485_Tx();
                 }
             }
 
-            xSL.isBusy = xDoor.IsBusy() || xServoA6.IsBusy();
-
-			TMC2660_ControlCurrent(0);
+            TMC2660_ControlCurrent(0);
 			Drive_GetStatus(0, &MotionStatus);
 
             ErrorMonitor();
@@ -59,25 +58,18 @@ VOID TASK_SamplingFinalization(void *pvParameters)
             /**************************************************************** */
             /** @note USER CODE - END                                         */
             /**************************************************************** */
-
-            // [1]. CD 의 SL 갱신
+            //==================================================================
+            xSL.Time = (F32)gTriggerTime;
+            xCD.Time = (F32)gTriggerTime;
+            xPL.Header.Time = (F32)gTriggerTime;
+            xCD.SL_Size = (F32)sizeof(tsXStateList);
             memcpy(&xCD.SL, &xSL, sizeof(tsXStateList));
 
-#if 0 //TODO
-            // []. 통신 연결 상태이면 데이터 전송
-            if (xNet.isConnected_TCP)
+            if (xNet.isConnected_TCP == YES)
             {
-                if (0) // TODO 데이터 로깅 상태이면
-                {
-                    SystemDB_CD_Push();
-                }
+                // SystemDB_CD_PushAll();
             }
-#endif
-
-            // []. 메이태스크 모니터링 // 디버깅 코드
             SFZ_TaskMonitoring();
-
-            //==================================================================
             gTick_SFZ = ITIMER_StopMeasure_us(startTick);
             __TASK_TRIGGER_END_Using(TEST_PORT_1, TP_IDX_taskSFZ);
         }

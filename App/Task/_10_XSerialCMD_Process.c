@@ -5,7 +5,7 @@
  *      Author: RND. Kang PilSoon.
  ******************************************************************************/
 #include "_10_XSerialCMD_Process.h"
-#include "_10_XCommandHandling.h"
+#include "_10_XCommand_Core.h"
 #include "XErrorCode.h"
 #include "XRingBuffer.h"
 #include "XDebug.h"
@@ -72,7 +72,7 @@ VOID TASK_SerialCommandLoop(void *pvParameters)
                          * *******************************************************/
                         if (gCurrentError.severity == _INFO || gCurrentError.severity == _WARNING) // 심각한 에러가 아니면,
                         {                                                                          // 단발성으로 처리하자!
-                            SetErrorCode(ERROR_CODE_NONE);                                         // 에러 초기화
+                            SetErrorCode(ERROR_CODE_NONE, __func__, __LINE__);                                         // 에러 초기화
                         }
 #endif
                     }

@@ -37,7 +37,7 @@ void Initialize_RobotDoor(void)
     xDoor.GetState /*            */ = RobotDoor_Door_GetState;
 
     xDoor.Read_Sensor /*         */ = RobotDoor_Read_Sensor;
-    xDoor.Update_State /*        */ = RobotDoor_Update_State;
+    xDoor.Update /*              */ = RobotDoor_Update;
 
     xDoor.StateMachine /*        */ = RobotDoor_StateMachine;
     //=========================================================================
@@ -60,14 +60,14 @@ void RobotDoor_Motor_Enable(void)
 {
     Drive_PowerEnable((U8)DOOR_STEP_MOTOR_CH, (U8)ENABLE);
     xSL.Door.Motor.isEnabled = YES;
-    LOG_MSG_SEND("Step-Motor Enabled.");
+    LOG_MSG_SEND("[Step] Motor Enabled.");
 }
 
 void RobotDoor_Motor_Disable(void)
 {
     Drive_PowerEnable((U8)DOOR_STEP_MOTOR_CH, (U8)DISABLE);
     xSL.Door.Motor.isEnabled = NO;
-    LOG_MSG_SEND("Step-Motor Disabled.");
+    LOG_MSG_SEND("[Step] Motor Disabled.");
 }
 
 void RobotDoor_Motor_SetSpeed(U32 pps)
@@ -168,10 +168,15 @@ void RobotDoor_Read_Sensor(void)
     xCD.Door.OpenSensor = digitalRead(READ_IN, IPIN_ROBOT_DOOR_SENSOR_OPEN);
 }
 
-void RobotDoor_Update_State(void)
+void RobotDoor_Update(void)
 {
-    int open = xCD.Door.OpenSensor;
-    int close = xCD.Door.CloseSensor;
+    int open;
+    int close;
+
+    RobotDoor_Read_Sensor();
+
+    open = xCD.Door.OpenSensor;
+    close = xCD.Door.CloseSensor;
 
     if (open == HIGH && close == LOW)
     {
@@ -304,7 +309,7 @@ void RobotDoor_StateMachine(void)
     case STEP_DOOR_INIT_4:
     case STEP_DOOR_INIT_5:
         LOG_MSG_SEND("StepMotor Init");
-        xSL.Door.isInitialized = YES;
+        xSL.Door.isInitialized = YES; // 현재는 사실 의미 없음. 
         step = STEP_DOOR_END_OK;
         break;
     case STEP_DOOR_OPEN_1: //======================================================
@@ -410,12 +415,12 @@ void RobotDoor_StateMachine(void)
     case STEP_DOOR_END_ERR: //======================================================
         if (errStep >= STEP_DOOR_OPEN_1 && errStep <= STEP_DOOR_OPEN_5)
         {
-            SetErrorCode(ERROR_CODE_ROBOT_DOOR_TIMEOUT);
+            SetErrorCode(ERROR_CODE_ROBOT_DOOR_TIMEOUT, __func__, __LINE__);
             ERR_MSG_SEND("[%s()] Timeout → [OPEN ] Step= %d", __func__, errStep);
         }
         else if (errStep >= STEP_DOOR_CLOSE_1 && errStep <= STEP_DOOR_CLOSE_5)
         {
-            SetErrorCode(ERROR_CODE_ROBOT_DOOR_TIMEOUT);
+            SetErrorCode(ERROR_CODE_ROBOT_DOOR_TIMEOUT, __func__, __LINE__);
             ERR_MSG_SEND("[%s()] Timeout → [CLOSE] Step= %d", __func__, errStep);
         }
         else

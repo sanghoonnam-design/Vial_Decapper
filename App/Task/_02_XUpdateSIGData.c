@@ -30,21 +30,23 @@ VOID TASK_UpdateSIGData(void *pvParameters)
         if (xSemaphoreTake(semHD_USD, RTOS_WAIT_FOREVER) == pdTRUE)
         {
             __TASK_TRIGGER_START_Using(TEST_PORT_1, TP_IDX_taskUSD);
-            startTick = ITIMER_StartMeasure_us();
             //===============================================================
+            startTick = ITIMER_StartMeasure_us();
             __xTaskStatus[TP_IDX_taskUSD] = true;
-            XTP_CheckTaskUsingLED(XHW_STATUS_LED_2);
+
             if (xSystemInfo.PL_Get_FW_Mode() == FW_MODE_IDLE)
             {
+                gTick_USD = ITIMER_StopMeasure_us(startTick);
                 __TASK_TRIGGER_END_Using(TEST_PORT_1, TP_IDX_taskUSD);
                 continue;
             }
+            XTP_CheckTaskUsingLED(XHW_STATUS_LED_2);
             //===============================================================
 
-            xDoor.Read_Sensor();  // 로봇도어 센서 읽기
-            xDoor.Update_State(); // 로봇도어 상태 판단
-
+            xDoor.Update(); 
             xServoA6.Update();
+
+            xSL.isBusy = xDoor.IsBusy() || xServoA6.IsBusy();
 
             //===============================================================
             gTick_USD = ITIMER_StopMeasure_us(startTick);

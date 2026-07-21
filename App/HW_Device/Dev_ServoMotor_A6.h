@@ -13,36 +13,36 @@
 
 #define A6_ID (1)
 
-#define PL_DEFAULT_DIRECTION /*                       */ (1) // 1 or -1
-#define PL_DEFAULT_HOME_SPEED_FORWARD_RPM /*          */ (15)
-#define PL_DEFAULT_HOME_SPEED_BACKWARD_RPM /*         */ (5)
-#define PL_DEFAULT_HOME_TIME_ACCEL_MILLIS /*          */ (50)
-#define PL_DEFAULT_HOME_OFFSET /*                     */ (100)
-#define PL_DEFAULT_SLOT_SPEED_RPM /*                  */ (20)
-#define PL_DEFAULT_SLOT_TIME_ACCEL_MILLIS /*          */ (500)
-#define PL_DEFAULT_SLOT_TIME_DECEL_MILLIS /*          */ (500)
+#define PL_DEFAULT_DIRECTION /*                       */ (1)   // 1 or -1
+#define PL_DEFAULT_HOME_SPEED_FORWARD_RPM /*          */ (15)  // 원점 복귀 속도(고속)
+#define PL_DEFAULT_HOME_SPEED_BACKWARD_RPM /*         */ (5)   // 원점 복귀 속도(저속)
+#define PL_DEFAULT_HOME_TIME_ACCEL_MILLIS /*          */ (50)  //
+#define PL_DEFAULT_HOME_OFFSET /*                     */ (100) //
+#define PL_DEFAULT_SLOT_SPEED_RPM /*                  */ (20)  //
+#define PL_DEFAULT_SLOT_TIME_ACCEL_MILLIS /*          */ (500) //
+#define PL_DEFAULT_SLOT_TIME_DECEL_MILLIS /*          */ (500) //
 #define PL_DEFAULT_SLOT_POSITION_OFFSET_1 /*          */ (100) // 티칭해야 되는 값.
-#define PL_DEFAULT_SLOT_POSITION_OFFSET_2 /*          */ (100)
-#define PL_DEFAULT_SLOT_POSITION_OFFSET_3 /*          */ (100)
-#define PL_DEFAULT_SLOT_POSITION_OFFSET_4 /*          */ (100)
-#define PL_DEFAULT_SLOT_POSITION_OFFSET_5 /*          */ (100)
-#define PL_DEFAULT_SLOT_POSITION_OFFSET_6 /*          */ (100)
-#define PL_DEFAULT_JOG_SPEED_RPM /*                   */ (20)
-#define PL_DEFAULT_JOG_TIME_ACCEL_MILLIS /*           */ (500)
-#define PL_DEFAULT_JOG_TIME_DECEL_MILLIS /*           */ (500)
-#define PL_DEFAULT_BASEMOVE_SPEED_RPM /*              */ (20)
-#define PL_DEFAULT_BASEMOVE_TIME_ACCEL_MILLIS /*      */ (500)
-#define PL_DEFAULT_BASEMOVE_TIME_DECEL_MILLIS /*      */ (500)
+#define PL_DEFAULT_SLOT_POSITION_OFFSET_2 /*          */ (100) //
+#define PL_DEFAULT_SLOT_POSITION_OFFSET_3 /*          */ (100) //
+#define PL_DEFAULT_SLOT_POSITION_OFFSET_4 /*          */ (100) //
+#define PL_DEFAULT_SLOT_POSITION_OFFSET_5 /*          */ (100) //
+#define PL_DEFAULT_SLOT_POSITION_OFFSET_6 /*          */ (100) //
+#define PL_DEFAULT_JOG_SPEED_RPM /*                   */ (20)  //
+#define PL_DEFAULT_JOG_TIME_ACCEL_MILLIS /*           */ (500) //
+#define PL_DEFAULT_JOG_TIME_DECEL_MILLIS /*           */ (500) //
+#define PL_DEFAULT_BASEMOVE_SPEED_RPM /*              */ (20)  //
+#define PL_DEFAULT_BASEMOVE_TIME_ACCEL_MILLIS /*      */ (500) //
+#define PL_DEFAULT_BASEMOVE_TIME_DECEL_MILLIS /*      */ (500) //
 // #define PL_DEFAULT_CENTRUFUGERUN_SPEED_RPM /*         */ (50) // not used
 // #define PL_DEFAULT_CENTRUFUGERUN_TIME_ACCEL_MILLIS /* */ (500)
 // #define PL_DEFAULT_CENTRUFUGERUN_TIME_DECEL_MILLIS /* */ (500)
 // #define PL_DEFAULT_CENTRUFUGERUN_MAXACCEL_PULSE /*    */ (13900)
-#define PL_DEFAULT_PULSE_PER_REVOLUTION /*            */ (10000)
+#define PL_DEFAULT_PULSE_PER_REVOLUTION /*            */ (10000) //
 
-#define TIMEOUT_HOME (__30sec)
-#define TIMEOUT_SLOT (__20sec)
-#define TIMEOUT_JOG (__5sec)
-#define TIMEOUT_DEFAULT (__10sec)
+#define TIMEOUT_HOME /*    */ (__30sec)
+#define TIMEOUT_SLOT /*    */ (__20sec)
+#define TIMEOUT_JOG /*     */ (__5sec)
+#define TIMEOUT_DEFAULT /* */ (__10sec)
 
 extern int isSavingParametersA6;
 
@@ -98,18 +98,18 @@ typedef struct                                // [1]. State List
     struct                                    //
     {                                         //
         int isConnected;                      // from RS485 logic, A6 통신 연결 상태
-        int isEnabled;                        //>! from USD, 모터 Enable(=Servo On) 상태
-        int isMoving;                         //>! from USD, 모터 moving 상태
-        int isHomed;                          //>! from USD, 모터 home 상태, 홈센서 친 상태
-        int isInPosition;                     //>! from USD, 모터 In-Position 여부 상태
-        int isError;                          //>! from USD, Servo A6 Error 상태, 1=Error, 0=No Error
-        int ErrorCode;                        //>! from USD, A6 상세 에러 코드
+        int isEnabled;                        //>! from USD/driver, 모터 Enable(=Servo On) 상태
+        int isMoving;                         //>! from USD/driver, 모터 moving 상태
+        int isHomed;                          //>! from USD/driver, 모터 home 상태, 홈센서 친 상태
+        int isInPosition;                     //>! from USD/driver, 모터 In-Position 여부 상태
+        int isError;                          //>! from USD/driver, Servo A6 Error 상태, 1=Error, 0=No Error
+        int ErrorCode;                        //>! from USD/driver, A6 상세 에러 코드
     } Driver;                                 //
                                               //
     int isLogicRunning;                       //!> from APC, 로직 동작 상태
-    int isCentrifugeRunning;                  //!> from APC, [CENT] 명령이 실행되고 있는지 여부
+    int isCentrifugeRunning;                  //!> from APC, [CENT] 명령이 실행되고 있는지 여부, for debugging.
     int isBusy;                               //!> from USD, = isMoving || isLogicRunning
-    int isHomed;                              //!> from home 상태머신, Driver isHomed + offset(slot 1) 이동한 상태
+    int isHomed;                              //!> from home 상태머신 동작 완료상태, Driver isHomed + offset(slot 1) 이동한 상태
                                               //
 } tsXSL_ServoA6;                              //
                                               //

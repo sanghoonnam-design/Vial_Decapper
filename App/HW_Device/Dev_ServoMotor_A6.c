@@ -128,14 +128,13 @@ void ServoA6_Set_Param_Origin(void)
 ret = 0, pdPASS
 ret = 1, errQUEUE_FULL
 */
-
 void ServoA6_Set_Param_Home(void)
 {
     S32 offset = 0; // xPL.ServoA6.Home.Offset;
     U16 velH = xPL.ServoA6.Home.Speed_Forward_rpm;
     U16 velL = xPL.ServoA6.Home.Speed_Backward_rpm;
     U16 acc = xPL.ServoA6.Home.Time_Accel_millis;
-    
+
     PanasonicA6_SetHomeParam(A6_ID, offset, velH, velL, acc);
 }
 
@@ -234,6 +233,11 @@ void ServoA6_ErrorMonitor(void)
     static U16 old_ErrorCode = 0;
     U16 errorCode;
 
+    if (xSL.ServoA6.Driver.isError)
+    {
+        SetErrorCode(ERROR_CODE_A6_DRIVER_ERROR, __func__, __LINE__);
+    }
+
     errorCode = PanasonicA6_GetErrorCode(A6_ID);
 
     if (errorCode != old_ErrorCode)
@@ -247,18 +251,21 @@ void ServoA6_ErrorMonitor(void)
 void ServoA6_Update(void)
 {
     // [SL] update
+    xSL.ServoA6.Driver.isConnected /*  */ = PanasonicA6_IsConnected(A6_ID);
     xSL.ServoA6.Driver.isEnabled /*    */ = PanasonicA6_IsServoOn(A6_ID);
     xSL.ServoA6.Driver.isMoving /*     */ = PanasonicA6_IsMoving(A6_ID);
     xSL.ServoA6.Driver.isHomed /*      */ = PanasonicA6_IsHomeCompelte(A6_ID);
     xSL.ServoA6.Driver.isInPosition /* */ = PanasonicA6_IsInPos(A6_ID);
     xSL.ServoA6.Driver.isError /*      */ = PanasonicA6_IsAlarm(A6_ID);
     xSL.ServoA6.Driver.ErrorCode /*    */ = PanasonicA6_GetErrorCode(A6_ID);
-    xSL.ServoA6.isBusy = xSL.ServoA6.isLogicRunning || xSL.ServoA6.Driver.isMoving;
 
-    if (xSL.ServoA6.Driver.isError)
+    // [예외 처리] 통신 끊김이 명령을 영구 차단하지 못하게 함.
+    if (xSL.ServoA6.Driver.isConnected == NO)
     {
-        SetErrorCode(ERROR_CODE_A6_DRIVER_ERROR);
+        xSL.ServoA6.Driver.isMoving = NO;
     }
+
+    xSL.ServoA6.isBusy = xSL.ServoA6.isLogicRunning || xSL.ServoA6.Driver.isMoving;
 
     // [CD] update
     xCD.ServoA6.CurrentSpeed.rpm = fabs(PanasonicA6_GetVel(A6_ID));
@@ -267,6 +274,8 @@ void ServoA6_Update(void)
     xCD.ServoA6.CurrentSpeed.pps = xCD.ServoA6.CurrentSpeed.rpm * PANASONIC_A6_PPR / 60;
     xCD.ServoA6.CurrentSpeed.rps = xCD.ServoA6.CurrentSpeed.rpm / 60;
     xCD.ServoA6.CurrentPosition.Pulse = PanasonicA6_GetPos(A6_ID);
+
+    // TODO
     // xCD.ServoA6.Centrifugal_Force = ;
     // xCD.ServoA6.Time.EstimatedTime_Count = ;
 }
@@ -385,26 +394,34 @@ void ServoA6_StateMachine(void)
             }
 
             if (step < ARRAY_SIZE(stepFunctionTable) && // step 이 있는지 확인.
-                stepFunctionTable[step])                // step function 이 있는지 확인. (NULL 이 아닌겨? )
+                stepFunctionTable[step])                // step function 이 있는지 확인.
             {
                 stepFunctionTable[step]();
             }
         }
         else
         { // abnormal 처리
-            if (initializedOnce  && isControllable != old_isControllable)
+            if (initializedOnce && isControllable != old_isControllable)
             {
                 returnStep = step;
                 returnSubStep = subStep;
                 step = STEP_ABNORMAL;
+                stepFunctionTable[step]();
             }
             initializedOnce = YES;
         }
     }
     else
     { // 초기화 : 끝날때까지 계속 호출
-        stepFunctionTable[STEP_INIT]();
-        xPL.ServoA6.CMD_StartControl = NO;
+        if (step == STEP_INIT || step == STEP_IDLE)
+        {
+            stepFunctionTable[STEP_INIT]();
+            xPL.ServoA6.CMD_StartControl = NO;
+        }
+        else
+        { // 초기화 실패시 실행
+            stepFunctionTable[step]();
+        }
     }
 
     xServoA6.ErrorMonitor(); // debugging code: display error .
@@ -425,12 +442,27 @@ static void Step_Init(void)
     case 0:
         xSL.ServoA6.isLogicRunning = YES;
         xSL.ServoA6.isInitialized = NO;
-        //        xServoA6.Set_Param_Home();
+
+        xServoA6.Set_Param_Home(); // 홈 파라미터 설정
+        LOG_MSG_SEND("[Servo Init] Set Home Param.");
+        waitCount = gTriggerCount;
         subStep++;
         break;
     case 1:
-        xServoA6.Enable();
-        subStep++;
+        // timeout check
+        if ((gTriggerCount - waitCount) > TIMEOUT_DEFAULT)
+        {
+            SetErrorCode(ERROR_CODE_A6_SERVO_TIMEOUT, __func__, __LINE__);
+            step = STEP_END_ERR;
+            return;
+        }
+
+        // servo ready 상태 확인 후 servo on
+        if (PanasonicA6_IsServoReady(A6_ID))
+        {
+            xServoA6.Enable();
+            subStep++;
+        }
         break;
     case 2:
         subStep++;
@@ -448,13 +480,13 @@ static void Step_Init(void)
     case 19:
         if ((gTriggerCount - waitCount) > __3sec)
         {
-            SetErrorCode(ERROR_CODE_A6_SERVO_ON_FAIL);
+            SetErrorCode(ERROR_CODE_A6_SERVO_ON_FAIL, __func__, __LINE__);
             step = STEP_END_ERR;
             return;
         }
         else if (xSL.ServoA6.Driver.isEnabled)
         {
-            LOG_MSG_SEND("Servo On");
+            LOG_MSG_SEND("[Servo Init] Servo On.");
             waitCount = gTriggerCount;
             subStep++;
         }
@@ -469,9 +501,11 @@ static void Step_Init(void)
         xSL.ServoA6.isLogicRunning = NO;
         xSL.ServoA6.isInitialized = YES;
         step = STEP_END_OK;
-        LOG_MSG_SEND("Servo Init");
+        LOG_MSG_SEND("[Servo Init] Completed.");
         break;
     default:
+        step = STEP_END_ERR;
+        SetErrorCode(ERROR_CODE_INVALID_SUBSTEP, __func__, __LINE__);
         break;
     }
 }
@@ -492,7 +526,7 @@ static void Step_Enable(void)
     case 2:
         if ((gTriggerCount - waitCount) > __3sec)
         {
-            SetErrorCode(ERROR_CODE_A6_SERVO_ON_FAIL);
+            SetErrorCode(ERROR_CODE_A6_SERVO_ON_FAIL, __func__, __LINE__);
             step = STEP_END_ERR;
             return;
         }
@@ -509,11 +543,13 @@ static void Step_Enable(void)
         }
         break;
     case 100:
-        LOG_MSG_SEND("[ENABLE] Servo On");
+        LOG_MSG_SEND("[Servo ENABLE] Servo On");
         xSL.ServoA6.isLogicRunning = NO;
         step = STEP_END_OK;
         break;
     default:
+        step = STEP_END_ERR;
+        SetErrorCode(ERROR_CODE_INVALID_SUBSTEP, __func__, __LINE__);
         break;
     }
 }
@@ -531,7 +567,7 @@ static void Step_Disable(void)
     case 1:
         if ((gTriggerCount - waitCount) > __3sec)
         {
-            SetErrorCode(ERROR_CODE_A6_SERVO_OFF_FAIL);
+            SetErrorCode(ERROR_CODE_A6_SERVO_OFF_FAIL, __func__, __LINE__);
             step = STEP_END_ERR;
             return;
         }
@@ -548,11 +584,13 @@ static void Step_Disable(void)
         }
         break;
     case 100:
-        LOG_MSG_SEND("[DISABLE] Servo Off");
+        LOG_MSG_SEND("[Servo DISABLE] Servo Off");
         xSL.ServoA6.isLogicRunning = NO;
         step = STEP_END_OK;
         break;
     default:
+        step = STEP_END_ERR;
+        SetErrorCode(ERROR_CODE_INVALID_SUBSTEP, __func__, __LINE__);
         break;
     }
 }
@@ -565,7 +603,7 @@ static void Step_Org(void)
         xSL.ServoA6.isLogicRunning = YES;
         if (xServoA6.IsDriverError() == YES)
         {
-            LOG_MSG_SEND("[ORG] xServoA6.AlarmClear() - start");
+            LOG_MSG_SEND("[Servo ORG] xServoA6.AlarmClear() - start");
             xServoA6.AlarmClear();
             waitCount = gTriggerCount;
             subStep++;
@@ -578,13 +616,13 @@ static void Step_Org(void)
     case 1:
         if ((gTriggerCount - waitCount) > __2sec)
         {
-            SetErrorCode(ERROR_CODE_A6_DRIVER_ERROR);
+            SetErrorCode(ERROR_CODE_A6_DRIVER_ERROR, __func__, __LINE__);
             step = STEP_END_ERR;
             return;
         }
         else if (xServoA6.IsDriverError() == NO)
         {
-            LOG_MSG_SEND("[ORG] xServoA6.AlarmClear() - end");
+            LOG_MSG_SEND("[Servo ORG] xServoA6.AlarmClear() - end");
             ClearError();
             subStep++;
         }
@@ -592,7 +630,7 @@ static void Step_Org(void)
     case 2: //================================================
         if (!xServoA6.IsServoOn())
         {
-            LOG_MSG_SEND("[ORG] xServoA6.Enable() - start.");
+            LOG_MSG_SEND("[Servo ORG] xServoA6.Enable() - start.");
             xServoA6.Enable();
             waitCount = gTriggerCount;
             subStep++;
@@ -605,13 +643,13 @@ static void Step_Org(void)
     case 3:
         if ((gTriggerCount - waitCount) > __2sec)
         {
-            SetErrorCode(ERROR_CODE_A6_SERVO_OFF);
+            SetErrorCode(ERROR_CODE_A6_SERVO_OFF, __func__, __LINE__);
             step = STEP_END_ERR;
             return;
         }
         else if (xServoA6.IsServoOn())
         {
-            LOG_MSG_SEND("[ORG] xServoA6.Enable() - end.");
+            LOG_MSG_SEND("[Servo ORG] xServoA6.Enable() - end.");
             ClearError();
             waitCount = gTriggerCount;
             subStep++;
@@ -637,7 +675,7 @@ static void Step_Org(void)
         if ((gTriggerCount - waitCount) > TIMEOUT_HOME)
         {
             xServoA6.Move_Stop();
-            SetErrorCode(ERROR_CODE_A6_SERVO_HOME_FAIL);
+            SetErrorCode(ERROR_CODE_A6_SERVO_HOME_FAIL, __func__, __LINE__);
             step = STEP_END_ERR;
             return;
         }
@@ -654,12 +692,14 @@ static void Step_Org(void)
         }
         break;
     case 100:
-        LOG_MSG_SEND("[ORG] Completed.");
+        LOG_MSG_SEND("[Servo ORG] Completed.");
         xSL.ServoA6.isLogicRunning = NO;
         xCD.ServoA6.CurrentPosition.SlotNum = SLOT_UNKNOWN;
         step = STEP_END_OK;
         break;
     default:
+        step = STEP_END_ERR;
+        SetErrorCode(ERROR_CODE_INVALID_SUBSTEP, __func__, __LINE__);
         break;
     }
 }
@@ -676,7 +716,7 @@ static void Step_Home(void)
         //       saveA6 명령 참조
         if (xServoA6.IsDriverError() == YES)
         {
-            LOG_MSG_SEND("[ORG] xServoA6.AlarmClear() - start");
+            LOG_MSG_SEND("[Servo ORG] xServoA6.AlarmClear() - start");
             xServoA6.AlarmClear();
             waitCount = gTriggerCount;
             subStep++;
@@ -689,13 +729,13 @@ static void Step_Home(void)
     case 1:
         if ((gTriggerCount - waitCount) > __2sec)
         {
-            SetErrorCode(ERROR_CODE_A6_DRIVER_ERROR);
+            SetErrorCode(ERROR_CODE_A6_DRIVER_ERROR, __func__, __LINE__);
             step = STEP_END_ERR;
             return;
         }
         else if (xServoA6.IsDriverError() == NO)
         {
-            LOG_MSG_SEND("[ORG] xServoA6.AlarmClear() - end");
+            LOG_MSG_SEND("[Servo ORG] xServoA6.AlarmClear() - end");
             ClearError();
             subStep++;
         }
@@ -703,7 +743,7 @@ static void Step_Home(void)
     case 2: //================================================
         if (!xServoA6.IsServoOn())
         {
-            LOG_MSG_SEND("[ORG] xServoA6.Enable() - start.");
+            LOG_MSG_SEND("[Servo ORG] xServoA6.Enable() - start.");
             xServoA6.Enable();
             waitCount = gTriggerCount;
             subStep++;
@@ -716,13 +756,13 @@ static void Step_Home(void)
     case 3:
         if ((gTriggerCount - waitCount) > __2sec)
         {
-            SetErrorCode(ERROR_CODE_A6_SERVO_OFF);
+            SetErrorCode(ERROR_CODE_A6_SERVO_OFF, __func__, __LINE__);
             step = STEP_END_ERR;
             return;
         }
         else if (xServoA6.IsServoOn())
         {
-            LOG_MSG_SEND("[ORG] xServoA6.Enable() - end.");
+            LOG_MSG_SEND("[Servo ORG] xServoA6.Enable() - end.");
             ClearError();
             waitCount = gTriggerCount;
             subStep++;
@@ -748,7 +788,7 @@ static void Step_Home(void)
         if ((gTriggerCount - waitCount) > TIMEOUT_HOME)
         {
             xServoA6.Move_Stop();
-            SetErrorCode(ERROR_CODE_A6_SERVO_HOME_FAIL);
+            SetErrorCode(ERROR_CODE_A6_SERVO_HOME_FAIL, __func__, __LINE__);
             step = STEP_END_ERR;
             return;
         }
@@ -777,7 +817,7 @@ static void Step_Home(void)
         if ((gTriggerCount - waitCount) > TIMEOUT_DEFAULT)
         {
             xServoA6.Move_Stop();
-            SetErrorCode(ERROR_CODE_A6_SERVO_HOME_FAIL);
+            SetErrorCode(ERROR_CODE_A6_SERVO_HOME_FAIL, __func__, __LINE__);
             step = STEP_END_ERR;
             return;
         }
@@ -794,13 +834,15 @@ static void Step_Home(void)
         }
         break;
     case 100:
-        LOG_MSG_SEND("[HOME] Completed. offset = %d", (int)xPL.ServoA6.Home.Offset);
+        LOG_MSG_SEND("[Servo HOME] Completed. offset = %d", (int)xPL.ServoA6.Home.Offset);
         xSL.ServoA6.isLogicRunning = NO;
         xSL.ServoA6.isHomed = YES;
         xCD.ServoA6.CurrentPosition.SlotNum = SLOT_1;
         step = STEP_END_OK;
         break;
     default:
+        step = STEP_END_ERR;
+        SetErrorCode(ERROR_CODE_INVALID_SUBSTEP, __func__, __LINE__);
         break;
     }
 }
@@ -845,7 +887,7 @@ static void Step_Jog(void)
         if ((gTriggerCount - waitCount) > TIMEOUT_JOG)
         {
             xServoA6.Move_Stop();
-            SetErrorCode(ERROR_CODE_A6_SERVO_JOG_FAIL);
+            SetErrorCode(ERROR_CODE_A6_SERVO_JOG_FAIL, __func__, __LINE__);
             step = STEP_END_ERR;
             return;
         }
@@ -862,12 +904,14 @@ static void Step_Jog(void)
         }
         break;
     case 100:
-        LOG_MSG_SEND("[JOGS] Current Position(pulse): %d", xCD.ServoA6.CurrentPosition.Pulse);
+        LOG_MSG_SEND("[Servo JOGS] Current Position(pulse): %d", xCD.ServoA6.CurrentPosition.Pulse);
         xSL.ServoA6.isLogicRunning = NO;
         xCD.ServoA6.CurrentPosition.SlotNum = SLOT_UNKNOWN; // 현재 slot 위치 모름.
         step = STEP_END_OK;
         break;
     default:
+        step = STEP_END_ERR;
+        SetErrorCode(ERROR_CODE_INVALID_SUBSTEP, __func__, __LINE__);
         break;
     }
 }
@@ -908,7 +952,7 @@ static void Step_Abs(void)
         if ((gTriggerCount - waitCount) > TIMEOUT_DEFAULT)
         {
             xServoA6.Move_Stop();
-            SetErrorCode(ERROR_CODE_A6_SERVO_MOVE_FAIL);
+            SetErrorCode(ERROR_CODE_A6_SERVO_MOVE_FAIL, __func__, __LINE__);
             step = STEP_END_ERR;
             return;
         }
@@ -925,12 +969,14 @@ static void Step_Abs(void)
         }
         break;
     case 100:
-        LOG_MSG_SEND("[MOVA] Current Position(pulse): %d", xCD.ServoA6.CurrentPosition.Pulse);
+        LOG_MSG_SEND("[Servo MOVA] Current Position(pulse): %d", xCD.ServoA6.CurrentPosition.Pulse);
         xSL.ServoA6.isLogicRunning = NO;
         xCD.ServoA6.CurrentPosition.SlotNum = SLOT_UNKNOWN; // 현위치 모름.
         step = STEP_END_OK;
         break;
     default:
+        step = STEP_END_ERR;
+        SetErrorCode(ERROR_CODE_INVALID_SUBSTEP, __func__, __LINE__);
         break;
     }
 }
@@ -971,7 +1017,7 @@ static void Step_Rel(void)
         if ((gTriggerCount - waitCount) > TIMEOUT_DEFAULT)
         {
             xServoA6.Move_Stop();
-            SetErrorCode(ERROR_CODE_A6_SERVO_MOVE_FAIL);
+            SetErrorCode(ERROR_CODE_A6_SERVO_MOVE_FAIL, __func__, __LINE__);
             step = STEP_END_ERR;
             return;
         }
@@ -988,12 +1034,14 @@ static void Step_Rel(void)
         }
         break;
     case 100:
-        LOG_MSG_SEND("[MOVI] Current Position(pulse): %d", xCD.ServoA6.CurrentPosition.Pulse);
+        LOG_MSG_SEND("[Servo MOVI] Current Position(pulse): %d", xCD.ServoA6.CurrentPosition.Pulse);
         xSL.ServoA6.isLogicRunning = NO;
         xCD.ServoA6.CurrentPosition.SlotNum = SLOT_UNKNOWN; // 현위치 모름.
         step = STEP_END_OK;
         break;
     default:
+        step = STEP_END_ERR;
+        SetErrorCode(ERROR_CODE_INVALID_SUBSTEP, __func__, __LINE__);
         break;
     }
 }
@@ -1009,7 +1057,7 @@ static void Step_Cent(void)
     static int dir = CW;
 
     switch (subStep)
-    { // TODO overflow 방지 로직 추가: 홈기능
+    {
     case 0:
         xSL.ServoA6.isLogicRunning = YES;
         xSL.ServoA6.isCentrifugeRunning = YES;
@@ -1023,6 +1071,7 @@ static void Step_Cent(void)
         time_total_ms = time_accel_ms + time_run_ms + time_decel_ms;        // [msec] -> T = T1 + T2 + T3
         time_remain_count = (S32)(time_total_ms / 10);                      // [count] = sec * 100
         /*=======================================================================*/
+
         // for debugging
         xCD.ServoA6.CentCommand.rpm = rpm;
         xCD.ServoA6.CentCommand.Time_msec_Accel = time_accel_ms;
@@ -1058,7 +1107,7 @@ static void Step_Cent(void)
         if ((gTriggerCount - waitCount) > ((time_total_ms / 10) + __5sec))
         {
             xServoA6.Move_Stop();
-            SetErrorCode(ERROR_CODE_A6_SERVO_CENT_FAIL);
+            SetErrorCode(ERROR_CODE_A6_SERVO_CENT_FAIL, __func__, __LINE__);
             step = STEP_END_ERR;
             return;
         }
@@ -1076,13 +1125,15 @@ static void Step_Cent(void)
         }
         break;
     case 100:
-        LOG_MSG_SEND("[CENT %d] Completed.", (int)rpm);
+        LOG_MSG_SEND("[Servo CENT %d] Completed.", (int)rpm);
         xCD.ServoA6.CurrentPosition.SlotNum = SLOT_UNKNOWN;
         xSL.ServoA6.isLogicRunning = NO;
         xSL.ServoA6.isCentrifugeRunning = NO;
         step = STEP_END_OK;
         break;
     default:
+        step = STEP_END_ERR;
+        SetErrorCode(ERROR_CODE_INVALID_SUBSTEP, __func__, __LINE__);
         break;
     }
 
@@ -1149,7 +1200,7 @@ static void Step_Slot(void)
         {
             xServoA6.Move_Stop();
             xCD.ServoA6.CurrentPosition.SlotNum = SLOT_UNKNOWN;
-            SetErrorCode(ERROR_CODE_A6_SERVO_SLOT_FAIL);
+            SetErrorCode(ERROR_CODE_A6_SERVO_SLOT_FAIL, __func__, __LINE__);
             step = STEP_END_ERR;
             return;
         }
@@ -1168,10 +1219,12 @@ static void Step_Slot(void)
     case 100:
         xCD.ServoA6.CurrentPosition.SlotNum = xPL.ServoA6.CMD_Param.SlotNum;
         xSL.ServoA6.isLogicRunning = NO;
-        LOG_MSG_SEND("[MOVS %d] completed.", xCD.ServoA6.CurrentPosition.SlotNum + 1);
+        LOG_MSG_SEND("[Servo MOVS %d] completed.", xCD.ServoA6.CurrentPosition.SlotNum + 1);
         step = STEP_END_OK;
         break;
     default:
+        step = STEP_END_ERR;
+        SetErrorCode(ERROR_CODE_INVALID_SUBSTEP, __func__, __LINE__);
         break;
     }
 }
@@ -1206,12 +1259,14 @@ static void Step_Stop(void)
         }
         break;
     case 100:
-        LOG_MSG_SEND("[STOP] completed.");
+        LOG_MSG_SEND("[Servo STOP] completed.");
         xSL.ServoA6.isLogicRunning = NO;
         oldState = STOP; // 초기화
         step = STEP_END_OK;
         break;
     default:
+        step = STEP_END_ERR;
+        SetErrorCode(ERROR_CODE_INVALID_SUBSTEP, __func__, __LINE__);
         break;
     }
 }
@@ -1246,12 +1301,14 @@ static void Step_Estop(void)
         }
         break;
     case 100:
-        LOG_MSG_SEND("[ESTOP] completed.");
+        LOG_MSG_SEND("[Servo ESTOP] completed.");
         xSL.ServoA6.isLogicRunning = NO;
         oldState = STOP;
         step = STEP_END_OK;
         break;
     default:
+        step = STEP_END_ERR;
+        SetErrorCode(ERROR_CODE_INVALID_SUBSTEP, __func__, __LINE__);
         break;
     }
 }
@@ -1269,7 +1326,7 @@ static void Step_Reset(void)
     switch (subStep)
     {
     case 0:
-        LOG_MSG_SEND("[RESET] (A6) start.");
+        LOG_MSG_SEND("[Servo RESET] (A6) start.");
         xSL.ServoA6.isLogicRunning = YES;
         // xSL.ServoA6.isHomed = NO;
         ClearError();
@@ -1280,7 +1337,7 @@ static void Step_Reset(void)
     case 1:
         if ((gTriggerCount - waitCount) > __3sec)
         {
-            SetErrorCode(ERROR_CODE_A6_SERVO_OFF_FAIL);
+            SetErrorCode(ERROR_CODE_A6_SERVO_OFF_FAIL, __func__, __LINE__);
             step = STEP_END_ERR;
             return;
         }
@@ -1318,7 +1375,7 @@ static void Step_Reset(void)
     case 6:
         if ((gTriggerCount - waitCount) > __3sec)
         {
-            SetErrorCode(ERROR_CODE_A6_SERVO_ON_FAIL);
+            SetErrorCode(ERROR_CODE_A6_SERVO_ON_FAIL, __func__, __LINE__);
             step = STEP_END_ERR;
             return;
         }
@@ -1338,10 +1395,12 @@ static void Step_Reset(void)
     case 100:
         ClearError();
         xSL.ServoA6.isLogicRunning = NO;
-        LOG_MSG_SEND("[RESET] (A6) completed.");
+        LOG_MSG_SEND("[Servo RESET] (A6) completed.");
         step = STEP_END_OK;
         break;
     default:
+        step = STEP_END_ERR;
+        SetErrorCode(ERROR_CODE_INVALID_SUBSTEP, __func__, __LINE__);
         break;
     }
 }
@@ -1368,10 +1427,12 @@ static void Step_AlarmClear(void)
         break;
     case 100:
         xSL.ServoA6.isLogicRunning = NO;
-        LOG_MSG_SEND("A6 alarm [CLEAR] completed.");
+        LOG_MSG_SEND("[Servo Alarm Clear] completed.");
         step = STEP_END_OK;
         break;
     default:
+        step = STEP_END_ERR;
+        SetErrorCode(ERROR_CODE_INVALID_SUBSTEP, __func__, __LINE__);
         break;
     }
 }
@@ -1396,8 +1457,18 @@ static void Step_Abnormal(void)
         break;
     }
 #else
-    // TODO
+    xSL.ServoA6.isLogicRunning = NO;
+    xSL.ServoA6.isCentrifugeRunning = NO;
+    xPL.ServoA6.CMD_ControlMode = A6_CONTROL_MODE_NONE;
+
+    subStep = 0;
+    returnStep = 0;
+    returnSubStep = 0;
+    waitCount = 0;
+    delayTime = 0;
+
     xServoA6.Move_Estop();
+
     step = STEP_END_OK;
 #endif
 }

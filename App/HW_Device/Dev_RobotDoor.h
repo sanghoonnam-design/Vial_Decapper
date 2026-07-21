@@ -28,10 +28,11 @@
 /*****************************************************************************/
 
 // robot door params.
-#define PL_DEFAULT_STEP_MOTOR_DIRECTION /*               */ (-1)     //
-#define PL_DEFAULT_ROBOTDOOR_CONTROL_TIMEOUT_ms /*       */ (5000)   // [msec]
-#define PL_DEFAULT_CLOSE_SENSOR_OVER_TIME_ms /*          */ (450)    // [msec], close 센서 치고 더 동작하는 시간
-#define PL_DEFAULT_OPEN_SENSOR_OVER_TIME_ms /*           */ (700)    // [msec], open 센서 치고 더 동작하는 시간
+#define PL_DEFAULT_STEP_MOTOR_DIRECTION /*               */ (-1)   // [-] direction
+#define PL_DEFAULT_ROBOTDOOR_CONTROL_TIMEOUT_ms /*       */ (5000) // [msec]
+#define PL_DEFAULT_CLOSE_SENSOR_OVER_TIME_ms /*          */ (450)  // [msec], close 센서 치고 더 동작하는 시간
+#define PL_DEFAULT_OPEN_SENSOR_OVER_TIME_ms /*           */ (700)  // [msec], open 센서 치고 더 동작하는 시간
+
 #define PL_DEFAULT_STEP_MOTOR_SPEED_PPS /*               */ (6000)   // [pps], 스텝 모터 기본 속도
 #define PL_DEFAULT_STEP_MOTOR_ACCEL_PPSS /*              */ (64000)  // [ppss], 스텝 모터 기본 가속도
 #define PL_DEFAULT_STEP_MOTOR_COMMAND_DISPLACEMENT /*    */ (18000)  // 스텝모터 상대이동 위치
@@ -120,7 +121,7 @@ typedef struct RobotDoorGroup           // [4]. Action & Method
     int (*GetState)(void);              //!>
                                         //
     void (*Read_Sensor)(void);          //!> from USD, 센서값 읽고,
-    void (*Update_State)(void);         //!> from USD, 도어상태 판단혀봐.
+    void (*Update)(void);               //!> from USD, 도어상태 판단혀봐.
                                         //
     void (*StateMachine)(void);         //!> FSM
 } tsXRobotDoor;                         //
@@ -149,7 +150,7 @@ int RobotDoor_Door_IsOpen(void);
 int RobotDoor_Door_GetState(void);
 
 void RobotDoor_Read_Sensor(void);
-void RobotDoor_Update_State(void);
+void RobotDoor_Update(void);
 
 void RobotDoor_StateMachine(void); // FSM
 

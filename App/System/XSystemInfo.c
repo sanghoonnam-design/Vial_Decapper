@@ -60,6 +60,10 @@ void System_Initialize(void)
         xSystemInfo.pl_FW_Version = FW_VERSION;
         xSystemInfo.pl_systemType = GetSystemType();
         xSystemInfo.pl_modelType = GetModelType();
+
+        // [YYMMDD] parameter를 EEPROM에 저장한 날짜 저장
+        xPL.Header.UpdateDate = SWRTC_GetTime_YYMMDDHH();
+        
         EEPROMPL_SaveToEEPROMandFlash();
     }
     makeVersionString();
@@ -132,11 +136,35 @@ void makeVersionString(void)
 U08 GetSystemType(void)
 {
 
-    return 1;
+    return SYSTEM_TYPE;
 }
 
 U08 GetModelType(void)
 {
 
-    return 1;
+    return MODEL_TYPE;
+}
+
+const char *GetSystemTypeString(void)
+{
+    return SYSTEM_TYPE_STR;
+}
+
+const char *GetModelTypeString(void)
+{
+    switch (GetModelType())
+    {
+    case MODEL_01:
+        return "MODEL-01";
+    case MODEL_02:
+        return "MODEL-02";
+    case MODEL_03:
+        return "MODEL-03";
+    case MODEL_04:
+        return "MODEL-04";
+    case MODEL_05:
+        return "MODEL-05";
+    default:
+        return "UNKNOWN";
+    }
 }

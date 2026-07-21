@@ -50,7 +50,7 @@ void HW_Init(void)
     IOEXP_Init();  // Digital IO init.
     SW_Init();     // Switch init.
     EEPROM_Init(); // EEPROM init.
-
+    SWRTC_Init();
     Drive_Init(); // Step motor driver init.
 
     Can_t c0;

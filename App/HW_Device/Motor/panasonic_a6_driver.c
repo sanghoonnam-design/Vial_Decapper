@@ -660,6 +660,11 @@ U08 PanasonicA6_IsServoOn(U08 id)
     return _A6_DriverData[id - 1].status.logicalInput.servoOn;
 }
 
+U08 PanasonicA6_IsServoReady(U08 id)
+{
+    return _A6_DriverData[id - 1].status.logicalOutput.servoReady;
+}
+
 U08 PanasonicA6_IsAlarm(U08 id)
 {
     return _A6_DriverData[id - 1].status.logicalOutput.alarm;
@@ -775,6 +780,11 @@ U08 PanasonicA6_TestRun(A6_DriverCtrl_t *param)
     param->cmd = A6DRIVER_CTRL_CMD_NONE;
 
     return ret;
+}
+
+U08 PanasonicA6_IsConnected(U08 id)
+{
+    return 1;
 }
 
 static U08 _modbusWriteMultipleRegisters(U08 id, U16 addr, U16 quantity, U16 *dataIn, U08 *flag)

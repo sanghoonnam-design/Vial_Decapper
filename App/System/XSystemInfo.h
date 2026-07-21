@@ -9,8 +9,22 @@
 
 #include "XGlobal.h"
 #include "_01_HW_and_Device.h"
+#include "XSystemInfo_ModuleDef.h"
+#include "_01_XSystemManagement.h"
 #include "XEEPROMParam.h"
 #include "XErrorCode.h"
+
+//-------------------------------------------------
+//   용도	             권장 임계값
+//-------------------------------------------------
+//   경고 (Warning)      80~85 °C
+//   제한 (Limit)	     90 °C
+//   에러 (Fault)	     95~100 °C
+//   절대 한계	          125 °C
+//-------------------------------------------------
+#define PL_DEFAULT_DG_CPU_TEMPERATURE_OVERHEAT_CRITERIA /* */ (80)	   // 80도 이상일 때 CPU 온도 과열로 판단하는 기준값, 단위: 섭씨도
+#define PL_DEFAULT_DG_CPU_TEMP_ALARM_INTERVAL_10msec /*    */ (__5min) // CPU 온도 과열 알람 주기, 단위: 호출 주기 기준
+
 
 //==================================================================================
 typedef enum
@@ -76,6 +90,8 @@ void System_Initialize(void);
 // teSystem_Type GetSystemType(void);
 U08 GetSystemType(void);
 U08 GetModelType(void);
+const char *GetSystemTypeString(void);
+const char *GetModelTypeString(void);
 
 SET_GET_FUNC_0(SystemInfo, U08, sl_isStartMainLoop)
 SET_GET_FUNC_0(SystemInfo, F32, cd_ErrorCount)

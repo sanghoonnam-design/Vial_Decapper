@@ -43,15 +43,17 @@ VOID TASK_UpdateTriggerTime(void *pvParameters)
         if (xSemaphoreTake(semHD_UTT, RTOS_WAIT_FOREVER) == pdTRUE)
         {
             __TASK_TRIGGER_START_Using(TEST_PORT_1, TP_IDX_taskUTT);
-            startTick = ITIMER_StartMeasure_us();
             //===============================================================
+            startTick = ITIMER_StartMeasure_us();
             __xTaskStatus[TP_IDX_taskUTT] = true;
-            XTP_CheckTaskUsingLED(XHW_STATUS_LED_1);
+
             if (xSystemInfo.PL_Get_FW_Mode() == FW_MODE_IDLE)
             {
+                gTick_UTT = ITIMER_StopMeasure_us(startTick);
                 __TASK_TRIGGER_END_Using(TEST_PORT_1, TP_IDX_taskUTT);
                 continue;
             }
+            XTP_CheckTaskUsingLED(XHW_STATUS_LED_1);
             __xTime_At(__100msec) xPrint_SystemInfo();
             __xTime_At(__1sec) xSystemInfo.SL_Set_isStartMainLoop(YES);
             //===============================================================
@@ -449,4 +451,18 @@ void Log_CheckDateChange(void)
             gSWRTC.min,
             gSWRTC.sec);
     }
+}
+
+// 8자리로 해야 안전, EEPROM 에 저장할때 사용함. 
+U32 SWRTC_GetTime_YYMMDDHH(void)
+{
+    U32 yy = (U32)(gSWRTC.year  % 100U);
+    U32 mm = (U32)(gSWRTC.month % 100U);
+    U32 dd = (U32)(gSWRTC.day   % 100U);
+    U32 hh = (U32)(gSWRTC.hour  % 100U);
+
+    return (yy * 1000000U) +
+           (mm * 10000U) +
+           (dd * 100U) +
+           hh;
 }

@@ -78,13 +78,13 @@ void http_post_settime(const http_request_ctx_t *ctx)
         sscanf((char *)ctx->body, "time=%d-%d-%d %d:%d:%d",
                &year, &month, &day, &hour, &min, &sec) == 6)
     {
-        gSWRTC.year  = (uint8_t)(year % 100);
+        gSWRTC.year = (uint8_t)(year % 100);
         gSWRTC.month = (uint8_t)month;
-        gSWRTC.day   = (uint8_t)day;
-        gSWRTC.hour  = (uint8_t)hour;
-        gSWRTC.min   = (uint8_t)min;
-        gSWRTC.sec   = (uint8_t)sec;
-        gSWRTC.ms    = 0;
+        gSWRTC.day = (uint8_t)day;
+        gSWRTC.hour = (uint8_t)hour;
+        gSWRTC.min = (uint8_t)min;
+        gSWRTC.sec = (uint8_t)sec;
+        gSWRTC.ms = 0;
 
         SWRTC_SetParam(&gSWRTC);
         http_response_set(ctx->resp, 200, "text/plain", NULL, 0);
@@ -125,14 +125,14 @@ void http_post_setNetwork(const http_request_ctx_t *ctx)
 {
     /* static: response body pointer must remain valid until TX completes */
     static char body[128];
-    uint8_t     ip[4];
-    uint8_t     subnet[4];
-    uint8_t     gateway[4];
-    uint8_t     ip_ok      = 0;
-    uint8_t     subnet_ok  = 0;
-    uint8_t     gateway_ok = 0;
-    char       *line;
-    char       *cr;
+    uint8_t ip[4];
+    uint8_t subnet[4];
+    uint8_t gateway[4];
+    uint8_t ip_ok = 0;
+    uint8_t subnet_ok = 0;
+    uint8_t gateway_ok = 0;
+    char *line;
+    char *cr;
 
     if (!ctx || !ctx->resp || !ctx->body || ctx->body_len == 0)
     {
@@ -140,8 +140,8 @@ void http_post_setNetwork(const http_request_ctx_t *ctx)
         return;
     }
 
-    memset(ip,      0, sizeof(ip));
-    memset(subnet,  0, sizeof(subnet));
+    memset(ip, 0, sizeof(ip));
+    memset(subnet, 0, sizeof(subnet));
     memset(gateway, 0, sizeof(gateway));
 
     line = strtok((char *)ctx->body, "\n");
@@ -168,11 +168,14 @@ void http_post_setNetwork(const http_request_ctx_t *ctx)
         return;
     }
 
-    memcpy(xSystemInfo.network.ip,     ip,      4);
-    memcpy(xSystemInfo.network.subnet, subnet,  4);
-    memcpy(xSystemInfo.network.gw,     gateway, 4);
+    memcpy(xSystemInfo.network.ip, ip, 4);
+    memcpy(xSystemInfo.network.subnet, subnet, 4);
+    memcpy(xSystemInfo.network.gw, gateway, 4);
 
     XTimer_Stop();
+    // [YYMMDD] parameter를 EEPROM에 저장한 날짜 저장
+    xPL.Header.UpdateDate = SWRTC_GetTime_YYMMDDHH();
+
     EEPROMPL_SaveToEEPROM();
     XTimer_Start();
 
@@ -180,8 +183,8 @@ void http_post_setNetwork(const http_request_ctx_t *ctx)
              "ip=%u.%u.%u.%u\n"
              "subnet=%u.%u.%u.%u\n"
              "gateway=%u.%u.%u.%u\n",
-             ip[0],      ip[1],      ip[2],      ip[3],
-             subnet[0],  subnet[1],  subnet[2],  subnet[3],
+             ip[0], ip[1], ip[2], ip[3],
+             subnet[0], subnet[1], subnet[2], subnet[3],
              gateway[0], gateway[1], gateway[2], gateway[3]);
 
     http_response_set(ctx->resp, 200, "text/plain", body, (uint32_t)strlen(body));
