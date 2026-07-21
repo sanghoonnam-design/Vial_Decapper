@@ -40,21 +40,25 @@ VOID TASK_Diagnose(void *pvParameters)
         if (xSemaphoreTake(semHD_SDG, RTOS_WAIT_FOREVER) == pdTRUE)
         {
             __TASK_TRIGGER_START_Using(TEST_PORT_1, TP_IDX_taskSDG);
-            startTick = ITIMER_StartMeasure_us();
             //==================================================================
+            startTick = ITIMER_StartMeasure_us();
             __xTaskStatus[TP_IDX_taskSDG] = true;
-            XTP_CheckTaskUsingLED(XHW_STATUS_LED_3);
+
             if (xSystemInfo.PL_Get_FW_Mode() == FW_MODE_IDLE || DB_isDiagnosisDisabled == YES)
             {
+                gTick_SDG = ITIMER_StopMeasure_us(startTick);
                 __TASK_TRIGGER_END_Using(TEST_PORT_1, TP_IDX_taskSDG);
                 continue;
             }
+            XTP_CheckTaskUsingLED(XHW_STATUS_LED_3);
             //==================================================================
-
+            
             SDG_RobotDoor_CheckControlAvailability();
             SDG_ServoA6_CheckControlAvailability();
 
             //==================================================================
+            ErrorMonitor_LED();
+            // SystemInfo_CheckCpuTemperature();
             gTick_SDG = ITIMER_StopMeasure_us(startTick);
             __TASK_TRIGGER_END_Using(TEST_PORT_1, TP_IDX_taskSDG);
         }
@@ -188,7 +192,7 @@ U08 SDG_RobotDoor_CheckError(int command)
 
     if (result.errorCode != ERROR_CODE_DEFAULT)
     {
-        SetErrorCode(result.errorCode);
+        SetErrorCode(result.errorCode, __func__, __LINE__);
         return true;
     }
 
@@ -201,7 +205,7 @@ U08 SDG_ServoA6_CheckError(int controlMode)
 
     if (result.errorCode != ERROR_CODE_DEFAULT)
     {
-        SetErrorCode(result.errorCode);
+        SetErrorCode(result.errorCode, __func__, __LINE__);
         return true;
     }
 

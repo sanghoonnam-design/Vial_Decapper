@@ -58,9 +58,14 @@ extern float _sec; // sec
 #define __30sec (3000)
 #define __60sec (6000)
 #define __1min __60sec
+#define __2min ((U32)(__1min * 2))
+#define __3min ((U32)(__1min * 3))
+#define __4min ((U32)(__1min * 4))
+#define __5min ((U32)(__1min * 5))
 #define __30min ((U32)(__1min * 30))
 #define __1hour ((U32)(__1min * 60))
 #define __1day ((U32)(__1min * 60 * 24))
+
 
 #define __xTime_Per(__tcount) if ((gTriggerCount % __tcount) == 0)
 #define __xTime_At(__tcount) if (gTriggerCount == __tcount)
@@ -132,6 +137,11 @@ void xPrint_SystemInfo(void);
 //==============================================================================
 U32 GetCurrentDate(void); // 소프트웨어 RTC에서 날짜와 시간 정보를 가져오는 함수
 void Log_CheckDateChange(void);
+//==============================================================================
+
+//==============================================================================
+// SW RTC 관련 함수
+U32 SWRTC_GetTime_YYMMDDHH(void);
 //==============================================================================
 
 #endif /* __XSYSTEMMANAGEMENT_H__ */

@@ -8,7 +8,7 @@
 #include "XDebug_User.h"
 #include "XSystemInfo.h"
 #include "_01_XSystemManagement.h"
-#include "_10_XCommandHandling.h"
+#include "_10_XCommand_Core.h"
 #include "_04_XDiagnose.h"
 #include "XDebug.h"
 #include "XParser.h"

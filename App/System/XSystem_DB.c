@@ -6,6 +6,7 @@
  *
  ******************************************************************************/
 #include "XSystem_DB.h"
+#include "XSystemInfo.h"
 
 tsXStateList xSL;
 tsXControlData xCD;
@@ -19,7 +20,7 @@ void SystemDB_Initialize(void)
 
     //==========================================================================
     SystemDB_SL_Init();
-    SystemDB_CD_Init();
+    // SystemDB_CD_Init();
     // SystemDB_PL_Init(); // [주의] PL은 부팅후 초기화 부분에서 EEPROM 쪽에서 실행된다.
 }
 
@@ -52,16 +53,29 @@ void SystemDB_CD_Init(void)
  * *************************************************************************/
 void SystemDB_PL_Init(void)
 {
-    /** @note USER CODE - START */
+    // ────────────────────────────────────────────────────────────────
+    /** @note USER CODE - START                                     **/
+    // ────────────────────────────────────────────────────────────────
 
-    // RobotDoor
-    // xPL.Door.CMD_StartControl = YES; // 초기화
+    xPL.Header.Size_PL /*     */ = sizeof(tsXParameterList);        //
+    xPL.Header.Size_Header /* */ = sizeof(tsXPL_Header);            //
+    xPL.Header.FW_Version /*  */ = xSystemInfo.PL_Get_FW_Version(); //
 
-    /** @note USER CODE - END */
+    // ────────────────────────────────────────────────────────────────
+    /** @note USER CODE - END                                       **/
+    // ────────────────────────────────────────────────────────────────
 }
 
 void SystemDB_PL_Init_Factory(tsXParameterList *pl)
 {
+     //========================================================================================================
+    pl->Header.UpdateDate /*                             */ = SWRTC_GetTime_YYMMDDHH();                        // [YYMMDD] parameter를 EEPROM에 저장한 날짜
+    pl->Header.DG_CPU_Temperature_Overheat_Criteria /*   */ = PL_DEFAULT_DG_CPU_TEMPERATURE_OVERHEAT_CRITERIA; // [°C] CPU 온도 과열 판단 기준값
+    pl->Header.DG_CPU_Temp_Alarm_Interval_10msec /*      */ = PL_DEFAULT_DG_CPU_TEMP_ALARM_INTERVAL_10msec;    // [sec] CPU 온도 과열 알람 주기
+    pl->Header.DG_IsDiagnosisEnabled /*                  */ = YES;                                             // 고장진단 활성화 여부
+    //========================================================================================================
+
+
     /** @note USER CODE - START */
 
     pl->Door.CMD_StartControl /*                      */ = NO;

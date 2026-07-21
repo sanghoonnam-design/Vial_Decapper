@@ -9,7 +9,7 @@
 #include "_01_XSystemManagement.h"
 #include "_02_XUpdateSigData.h"
 #include "_10_XSerialCMD_Process.h"
-#include "_10_XCommandHandling.h"
+#include "_10_XCommand_Core.h"
 #include "XSystem_DB.h"
 #include "XBuffer.h"
 #include "XDebug.h"
@@ -34,15 +34,17 @@ VOID TASK_ApplicationControl(void *pvParameters)
         if (xSemaphoreTake(semHD_APC, RTOS_WAIT_FOREVER) == pdTRUE)
         {
             __TASK_TRIGGER_START_Using(TEST_PORT_1, TP_IDX_taskAPC);
-            startTick = ITIMER_StartMeasure_us();
             //==================================================================
+            startTick = ITIMER_StartMeasure_us();
             __xTaskStatus[TP_IDX_taskAPC] = true;
-            XTP_CheckTaskUsingLED(XHW_STATUS_LED_4);
+
             if (xSystemInfo.PL_Get_FW_Mode() == FW_MODE_IDLE || gTriggerCount < Control_StartTime)
             {
+                gTick_APC = ITIMER_StopMeasure_us(startTick);
                 __TASK_TRIGGER_END_Using(TEST_PORT_1, TP_IDX_taskAPC);
                 continue;
             }
+            XTP_CheckTaskUsingLED(XHW_STATUS_LED_4);
             //==================================================================
 
             if (xSystemInfo.PL_Get_FW_Mode() != FW_MODE_APC_STOP)
