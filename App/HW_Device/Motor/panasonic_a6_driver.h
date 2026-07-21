@@ -9,7 +9,7 @@
 #define PANASONIC_A6_DRIVER_EXT extern
 #endif
 
-#define PANASONIC_A6_PPR 	(10000)
+#define PANASONIC_A6_PPR (10000)
 #define PANASONIC_A6_CH_MAX (1)
 
 typedef enum A6_FuncIndex_t
@@ -138,7 +138,7 @@ typedef union A6_DriverStatus_t
 
 typedef struct A6_DriverParam_t
 {
-    S32 vel; //rpm
+    S32 vel; // rpm
     U32 acc_ms;
     U32 dec_ms;
     S32 jogVel;
@@ -162,7 +162,7 @@ typedef struct A6_DriverHomeParam_t
     S32 offset;
     U16 speedHigh; // 0 ~ 20000, RPM
     U16 speedLow;  // 0 ~ 20000, RPM
-    U32 acc_ms;       // 0 ~ 10000, ms
+    U32 acc_ms;    // 0 ~ 10000, ms
 } A6_DriverHomeParam_t;
 
 typedef struct A6_DriverData_t
@@ -219,12 +219,13 @@ PANASONIC_A6_DRIVER_EXT U08 PanasonicA6_IsZeroSpeed(U08 id);
 PANASONIC_A6_DRIVER_EXT U08 PanasonicA6_IsMoving(U08 id);
 PANASONIC_A6_DRIVER_EXT U08 PanasonicA6_IsHomeCompelte(U08 id);
 PANASONIC_A6_DRIVER_EXT S32 PanasonicA6_GetPos(U08 id);
-PANASONIC_A6_DRIVER_EXT F32 PanasonicA6_GetVel(U08 id);// 초당 pulse
+PANASONIC_A6_DRIVER_EXT F32 PanasonicA6_GetVel(U08 id); // 초당 pulse
 PANASONIC_A6_DRIVER_EXT U08 PanasonicA6_TestRun(A6_DriverCtrl_t *param);
 
 PANASONIC_A6_DRIVER_EXT U08 PanasonicA6_IsConnected(U08 id); // 통신이 끊겼는지 확인. 통신이 끊기면 명령을 영구 차단하지 못하게 함.
 
 PANASONIC_A6_DRIVER_EXT U08 PanasonicA6_CheckTransaction(A6_FuncIndex_t idx);
+PANASONIC_A6_DRIVER_EXT U08 PanasonicA6_IsConnected(U08 id);
 PANASONIC_A6_DRIVER_EXT A6_DriverCtrl_t A6_DriverCtrl;
 
 #endif

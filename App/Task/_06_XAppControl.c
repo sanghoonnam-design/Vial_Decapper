@@ -20,14 +20,14 @@
 
 Semaphore_Handle semHD_APC;
 
-static U32 Control_StartTime = __2sec; 
+static U32 Control_StartTime = __2sec;
 
 VOID TASK_ApplicationControl(void *pvParameters)
 {
     /** @note: USER CODE, Init. Task */
     uint32_t startTick;
 
-//    A6_Driver_test_Init();
+    //    A6_Driver_test_Init();
 
     FOREVER
     {
@@ -50,7 +50,7 @@ VOID TASK_ApplicationControl(void *pvParameters)
             if (xSystemInfo.PL_Get_FW_Mode() != FW_MODE_APC_STOP)
             {
                 xDoor.StateMachine();
-				xServoA6.StateMachine();
+                xServoA6.StateMachine();
             }
 
             //==================================================================
@@ -67,4 +67,3 @@ int Init_ApplicationControl(int Index)
 
     return EXIT_SUCCESS;
 }
-

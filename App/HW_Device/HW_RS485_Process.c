@@ -28,6 +28,8 @@ static nmbs_t _modbusClient;
 static U32 ModbusProcessTimeMax_us = 0;
 static U32 gTick_Modbus_us = 0;
 
+static U32 _lastRxTick;
+
 void RS485_Init(void)
 {
     highQueue = xQueueCreate(HIGH_QUEUE_LENGTH, QUEUE_ITEM_SIZE);
@@ -56,6 +58,11 @@ VOID TASK_RS485_Handler(void *pvParameters)
 
     for (int i = 0; i < 3; i++)
         retryCount_RS485[i] = 0;
+
+    while (xSystemInfo.SL_Get_isStartMainLoop() != YES)
+        ;
+
+    _lastRxTick = HAL_GetTick();
 
     while (1)
     {
@@ -127,6 +134,7 @@ static nmbs_error _modbus_process(nmbs_t *client, ModbusMsg_t *msg)
         err = _modbus_transaction(client, msg);
         if (err == NMBS_ERROR_NONE)
         {
+            _lastRxTick = HAL_GetTick();
             (*msg->flag)++;
             break;
         }
@@ -176,6 +184,11 @@ static nmbs_error _modbus_transaction(nmbs_t *client, ModbusMsg_t *msg)
     }
 
     return err;
+}
+
+uint8_t RS485_IsConnected(void)
+{
+    return ((HAL_GetTick() - _lastRxTick) <= 3000) ? 1 : 0;
 }
 
 U08 RS485_ModbusWriteFunc(U08 priority, U08 id, U08 fc, U16 addr, U16 quantity, U16 *dataIn, U08 *flag)
