@@ -7,6 +7,8 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QApplication,
     QFrame,
+    QGroupBox,
+    QLabel,
     QLineEdit,
     QPlainTextEdit,
     QPushButton,
@@ -49,7 +51,7 @@ class MainWindowTests(unittest.TestCase):
         visual_area = window.findChild(QWidget, "visual_area")
         right_splitter = window.findChild(QSplitter, "right_splitter")
         input_area = window.findChild(QWidget, "input_area")
-        command_input = window.findChild(QPlainTextEdit, "command_input")
+        command_input = window.findChild(QLineEdit, "command_input")
         command_send_button = window.findChild(QPushButton, "command_send_button")
 
         self.assertIsNotNone(separator)
@@ -63,3 +65,56 @@ class MainWindowTests(unittest.TestCase):
         self.assertIsNotNone(command_input)
         self.assertIsNotNone(command_send_button)
         self.assertEqual(command_send_button.text(), "Send")
+
+    def test_command_area_has_compact_input_and_read_only_communication_log(self) -> None:
+        window = MainWindow()
+        window.resize(1000, 700)
+        window.show()
+        self.application.processEvents()
+
+        right_splitter = window.findChild(QSplitter, "right_splitter")
+        input_area = window.findChild(QGroupBox, "input_area")
+        command_area = window.findChild(QGroupBox, "command_area")
+        command_input = window.findChild(QLineEdit, "command_input")
+        communication_log = window.findChild(QPlainTextEdit, "communication_log")
+
+        self.assertIsNotNone(command_input)
+        self.assertLessEqual(command_input.height(), 40)
+        self.assertIsNotNone(communication_log)
+        self.assertTrue(communication_log.isReadOnly())
+        self.assertLessEqual(abs(input_area.height() - command_area.height()), 30)
+        self.assertEqual(right_splitter.orientation(), Qt.Orientation.Vertical)
+
+    def test_workspace_uses_equal_columns_with_labeled_boundaries(self) -> None:
+        window = MainWindow()
+        window.resize(1000, 700)
+        window.show()
+        self.application.processEvents()
+
+        visual_area = window.findChild(QGroupBox, "visual_area")
+        input_area = window.findChild(QGroupBox, "input_area")
+        command_area = window.findChild(QGroupBox, "command_area")
+        right_splitter = window.findChild(QSplitter, "right_splitter")
+
+        self.assertIsNotNone(visual_area)
+        self.assertIsNotNone(input_area)
+        self.assertIsNotNone(command_area)
+        self.assertEqual(visual_area.title(), "Vial Decapper Image")
+        self.assertEqual(input_area.title(), "Teaching Point")
+        self.assertEqual(command_area.title(), "Command")
+        self.assertLessEqual(abs(visual_area.width() - right_splitter.width()), 30)
+
+    def test_connection_bar_has_prominent_product_title(self) -> None:
+        window = MainWindow()
+
+        title_label = window.findChild(QLabel, "app_title")
+        brand_mark = window.findChild(QLabel, "brand_mark")
+        visual_pattern = window.findChild(QLabel, "visual_pattern")
+
+        self.assertIsNotNone(title_label)
+        self.assertEqual(title_label.text(), "Vial Decapper")
+        self.assertGreaterEqual(title_label.font().pointSize(), 20)
+        self.assertIsNotNone(brand_mark)
+        self.assertEqual(brand_mark.text(), "◈")
+        self.assertIsNotNone(visual_pattern)
+        self.assertEqual(visual_pattern.text(), "◈")
