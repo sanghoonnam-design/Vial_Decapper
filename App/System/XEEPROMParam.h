@@ -64,7 +64,7 @@ typedef struct EEPROM_HeaderGroup
     U32 header_7;              /*> resv.           */
     U32 header_8;              /*> resv.           */
     U32 header_9;              /*> resv.           */
-    U32 header_10;             /*> resv.           */
+    U32 isCrcValid;            /*> crc check result */
 } tsEEPROM_Header;             /*!=> 40 bytes      */
 
 /* HW 정보 */

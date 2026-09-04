@@ -14,9 +14,8 @@
 #include "XBuffer.h"
 #include "XDebug.h"
 #include "XStateMachine.h"
-#include "TEST_Code.h"
 
-#include "a6_driver_test.h"
+#include "CDecap.h"
 
 Semaphore_Handle semHD_APC;
 
@@ -46,13 +45,7 @@ VOID TASK_ApplicationControl(void *pvParameters)
             }
             XTP_CheckTaskUsingLED(XHW_STATUS_LED_4);
             //==================================================================
-
-            if (xSystemInfo.PL_Get_FW_Mode() != FW_MODE_APC_STOP)
-            {
-                xDoor.StateMachine();
-                xServoA6.StateMachine();
-            }
-
+            xCDecap.Action_Fnc(xAT);
             //==================================================================
             gTick_APC = ITIMER_StopMeasure_us(startTick);
             __TASK_TRIGGER_END_Using(TEST_PORT_1, TP_IDX_taskAPC);
@@ -64,6 +57,6 @@ VOID TASK_ApplicationControl(void *pvParameters)
 int Init_ApplicationControl(int Index)
 {
     semHD_APC = xSemaphoreCreateBinary();
-
+    CDecap_Init();
     return EXIT_SUCCESS;
 }

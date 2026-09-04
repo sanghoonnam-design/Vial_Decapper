@@ -88,23 +88,30 @@ void CMD_Handle_VERS(const tsXParsedData *parsedData, U08 useTCP);
 void CMD_Handle_GERR(const tsXParsedData *parsedData, U08 useTCP);
 void CMD_Handle_GERD(const tsXParsedData *parsedData, U08 useTCP);
 void CMD_Handle_CLER(const tsXParsedData *parsedData, U08 useTCP);
-void CMD_Handle_SAVEE(const tsXParsedData *parsedData, U08 useTCP);
-void CMD_Handle_SAVEF(const tsXParsedData *parsedData, U08 useTCP);
-void CMD_Handle_SAVEA(const tsXParsedData *parsedData, U08 useTCP);
+
+void CMD_Handle_REBOOT(const tsXParsedData *parsedData, U08 useTCP);
+void CMD_Handle_SetGetIP(const tsXParsedData *parsedData, U08 useTCP);
+void CMD_Handle_FACTORY(const tsXParsedData *parsedData, U08 useTCP);
+void CMD_Handle_RTC(const tsXParsedData *parsedData, U08 useTCP);
+
+void CMD_Handle_DO(const tsXParsedData *parsedData, U08 useTCP);
+void CMD_Handle_DI(const tsXParsedData *parsedData, U08 useTCP);
+
 void CMD_Handle_LOADE(const tsXParsedData *parsedData, U08 useTCP);
 void CMD_Handle_LOADF(const tsXParsedData *parsedData, U08 useTCP);
 void CMD_Handle_LOADC(const tsXParsedData *parsedData, U08 useTCP);
-void CMD_Handle_FACTORY(const tsXParsedData *parsedData, U08 useTCP);
-void CMD_Handle_PrintParams(const tsXParsedData *parsedData, U08 useTCP);
 
-void CMD_Handle_DI(const tsXParsedData *parsedData, U08 useTCP);
-void CMD_Handle_DO(const tsXParsedData *parsedData, U08 useTCP);
+void CMD_Handle_SAVEE(const tsXParsedData *parsedData, U08 useTCP);
+void CMD_Handle_SAVEF(const tsXParsedData *parsedData, U08 useTCP);
+void CMD_Handle_SAVEA(const tsXParsedData *parsedData, U08 useTCP);
+
+void CMD_Handle_PrintParams(const tsXParsedData *parsedData, U08 useTCP);
 
 void CMD_Handle_ContFullInfo(const tsXParsedData *parsedData, U08 useTCP);
 void CMD_Handle_SetIP(const tsXParsedData *parsedData, U08 useTCP);
 void CMD_Handle_TaskList(const tsXParsedData *parsedData, U08 useTCP);
 void CMD_Handle_StackSize(const tsXParsedData *parsedData, U08 useTCP);
-void CMD_Handle_REBOOT(const tsXParsedData *parsedData, U08 useTCP);
+
 void CMD_Handle_DebugMode(const tsXParsedData *parsedData, U08 useTCP);
 void CMD_Handle_GetSize(const tsXParsedData *parsedData, U08 useTCP);
 void CMD_Handle_FWMode(const tsXParsedData *parsedData, U08 useTCP);

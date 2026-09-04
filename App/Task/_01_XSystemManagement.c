@@ -66,6 +66,7 @@ VOID TASK_UpdateTriggerTime(void *pvParameters)
 
             /*[]. RTC */
             SWRTC_GetParam(&gSWRTC); // 소프트웨어 RTC에서 시간 정보 읽기
+            Log_CheckDateChange();   // RTC 날짜 변경 체크 및 플래그 설정
 
             Log_CheckDateChange(); // RTC 날짜 변경 체크 및 플래그 설정
 
@@ -215,9 +216,9 @@ void xPrint_SystemInfo(void)
     XTimer_Stop();
     printf(ANSI_CLEAR_TERMINAL ANSI_BG_ORG ANSI_TX_ORG); // 콘솔창 클리어
     printf("===================================================\r\n");
-    printf("  RND Embedded System - v1.0.0\r\n");
+    printf("  [" ANSI_TX_LightGreen "RND" ANSI_TX_ORG " Embedded System " ANSI_TX_LightMagenta "(ISBC v1.1)" ANSI_TX_ORG "]\r\n");
     printf("  Build : %s  %s\r\n", __DATE__, __TIME__);
-    printf("  MCU   : STM32F746IGK6 @ 216MHz\r\n");
+    printf("  MCU   : STM32F746ZE @ 216MHz\r\n");
     printf("===================================================\r\n");
 
     xCheck_ApplicationFW(); // Application Info
@@ -225,8 +226,15 @@ void xPrint_SystemInfo(void)
     xCheck_Peripheral();    // Peripheral & Sensor
     xCheck_Task();          // Task info
 
-    // printf("RND>");
-    __prompt();
+    // check load EEPROM
+    if (gEEPROM.header.isCrcValid == NO)
+    {
+        printf(ANSI_TX_Magenta " [ERR] " ANSI_TX_ORG " [EEPROM CRC INVALID]! Parameter structure may have changed.\r\n");
+        printf(ANSI_TX_Magenta " [ERR] " ANSI_TX_ORG " Please run the [SAVEE] command to apply and save the current settings.\r\n");
+    }
+
+    // __prompt();
+    printf("RND>\r\n");
     XTimer_Start();
     // xCheck_Stack();         //
 }
@@ -236,8 +244,9 @@ void xCheck_ApplicationFW(void)
     XTimer_Stop();
 
     // @USER CODE START
-    printf("App. FW. ver          : %s\r\n", xSystemInfo.cd_FWVersion_str);
-    printf("Network IP, port      : %2d.%d.%d.%d, %u\r\n",
+    printf("App. FW. ver          : " ANSI_TX_LightCyan "%s\r\n" ANSI_TX_ORG, xSystemInfo.cd_FWVersion_str);
+
+    printf("Network IP, port      : " ANSI_TX_LightYellow "%2d.%d.%d.%d, %u\r\n" ANSI_TX_ORG,
            gEEPROM.hwInfo.network.ip[0],
            gEEPROM.hwInfo.network.ip[1],
            gEEPROM.hwInfo.network.ip[2],
@@ -252,11 +261,12 @@ void xCheck_RtosStatus(void)
 {
     XTimer_Stop();
     printf("FreeRTOS Version      : %s\r\n", tskKERNEL_VERSION_NUMBER);
-    printf("Heap Total            : %d bytes\r\n", configTOTAL_HEAP_SIZE);
-    printf("Heap Free             : %u bytes\r\n", xPortGetFreeHeapSize());
+    printf("Heap Total/Free       : %d / %u bytes\r\n", configTOTAL_HEAP_SIZE, xPortGetFreeHeapSize());
+    // printf("Heap Free             : %u bytes\r\n", xPortGetFreeHeapSize());
     TaskHandle_t currentTask = xTaskGetCurrentTaskHandle();
     printf("Current Task          : %s\r\n", pcTaskGetName(currentTask));
     printf("System Tick Rate      : %lu Hz\r\n", configTICK_RATE_HZ);
+    printf("Control Frequency     : " ANSI_TX_LightCyan "%d Hz\r\n" ANSI_TX_ORG, (int)_Hz);
     TickType_t ticks = xTaskGetTickCount();
     printf("Current Tick Count    : %lu ticks (%.2f sec)\r\n", ticks, ticks / (float)configTICK_RATE_HZ);
     printf("---------------------------------------------------\r\n");
@@ -288,10 +298,10 @@ void xCheck_Task(void)
 #if (configUSE_TRACE_FACILITY == 1) && (configUSE_STATS_FORMATTING_FUNCTIONS == 1)
     vTaskList(buffer);
 
-    UBaseType_t taskCount = uxTaskGetNumberOfTasks();
-    printf("\r\n [Task List]  Number of Tasks - %lu \r\n", taskCount);
-    printf("---------------------------------------------------\r\n");
-    printf("  Task Name\tState\tPrio.\tStack\tRun Num\r\n");
+    __attribute__((unused)) UBaseType_t taskCount = uxTaskGetNumberOfTasks();
+    // printf("\r\n [Task List]  Number of Tasks - %lu \r\n", taskCount);
+    // printf("---------------------------------------------------\r\n");
+    printf("\r\n  Task Name\tState\tPrio.\tStack\tRun Num(%lu)\r\n", taskCount);
     printf("---------------------------------------------------\r\n");
     char *line = strtok(buffer, "\n");
     while (line != NULL)
@@ -315,7 +325,7 @@ void xCheck_Stack(void)
 {
     XTimer_Stop();
 
-    printf("\r\n [Stack Usage] \r\n");
+    printf(" [Stack Usage] \r\n");
 
     static TaskStatus_t taskStatusArray[24];
     UBaseType_t count = uxTaskGetSystemState(taskStatusArray, 24, NULL);
@@ -377,7 +387,7 @@ void xCheck_Stack(void)
     printf(" Free heap size: %u bytes → max stack size: %u words.\r\n",
            (unsigned)xPortGetFreeHeapSize(),
            (unsigned)((xPortGetFreeHeapSize() - 88) / 4));
-    printf(" Minimum ever free heap size: %u bytes.\r\n\n",
+    printf(" Minimum ever free heap size: %u bytes.\r\n",
            (unsigned)xPortGetMinimumEverFreeHeapSize());
 
     XTimer_Start();
@@ -407,7 +417,7 @@ static uint32_t GetTaskStackSize(const char *taskName)
         return 256;
     if (strcmp(taskName, "TASK_CLI_TX") == 0)
         return 400;
-    if (strcmp(taskName, "TASK_RS485") == 0)
+    if (strncmp(taskName, "TASK_RS485", 10) == 0)
         return 256;
     if (strcmp(taskName, "Task_WDG") == 0)
         return 128;
@@ -441,9 +451,7 @@ void Log_CheckDateChange(void)
         prevDay = gSWRTC.day;
 
         Debug_LogMessageHelper(
-            "\r\n===== "
-            "DATE UPDATED : 20%02d-%02d-%02d, %02d:%02d:%02d"
-            " =====\r\n",
+            "\r\n===== " ANSI_TX_LightYellow "DATE UPDATED : 20%02d-%02d-%02d, %02d:%02d:%02d" ANSI_TX_ORG " =====\r\n",
             gSWRTC.year,
             gSWRTC.month,
             gSWRTC.day,
@@ -453,13 +461,13 @@ void Log_CheckDateChange(void)
     }
 }
 
-// 8자리로 해야 안전, EEPROM 에 저장할때 사용함. 
+// 8자리로 해야 안전, EEPROM 에 저장할때 사용함.
 U32 SWRTC_GetTime_YYMMDDHH(void)
 {
-    U32 yy = (U32)(gSWRTC.year  % 100U);
+    U32 yy = (U32)(gSWRTC.year % 100U);
     U32 mm = (U32)(gSWRTC.month % 100U);
-    U32 dd = (U32)(gSWRTC.day   % 100U);
-    U32 hh = (U32)(gSWRTC.hour  % 100U);
+    U32 dd = (U32)(gSWRTC.day % 100U);
+    U32 hh = (U32)(gSWRTC.hour % 100U);
 
     return (yy * 1000000U) +
            (mm * 10000U) +

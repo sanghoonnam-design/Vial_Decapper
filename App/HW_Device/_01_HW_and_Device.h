@@ -11,10 +11,6 @@
 #include "_00_Dev_Config.h"
 
 //============================================================= [Device]
-#include "Dev_LED.h"
-#include "Dev_RobotDoor.h"
-#include "Dev_ServoMotor_A6.h"
-#include "Dev_Temperature.h"
 //============================================================= [Device]
 
 /**

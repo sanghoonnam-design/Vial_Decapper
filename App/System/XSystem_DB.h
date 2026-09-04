@@ -11,6 +11,8 @@
 #include "XGlobal.h"
 #include "_01_HW_and_Device.h"
 
+#include "CDecap.h"
+
 // 시스템 DB의 헤더 부분, 향후 확장 가능하도록 미리 정의
 // 4 * 16 = 64 Bytes 로 설계함. => 고정
 typedef struct
@@ -49,11 +51,17 @@ typedef struct
     F32 Time; // [sec] 시스템 가동 후 시간
     /**──────────────────────────────── 여기까지 기본 포멧 [수정하지 말것!~] */
 
-    int isBusy;            //
-                           //
-    tsXSL_LED LED;         // 현재는 없음.
-    tsXSL_RobotDoor Door;  //
-    tsXSL_ServoA6 ServoA6; //
+    int isBusy;
+    int isError;
+    int isEnable;
+    int isHomed;
+    int errorCode;
+
+    tsXSL_Decapper Decapper; 				//is homed 과 같은 형재 상태 확인
+    xSLecapping_Sensor CDecapping_Sensor;	//각 센서의 데이터 데이터 확인
+    xSLecapping_MotorRun xZ_Motor_Run;		//Z축 모터의 움직임 확인
+    xSLecapping_MotorRun xR_Motor_Run;		//R축 모터의 움직임 확인
+
 } tsXStateList;
 
 typedef struct
@@ -70,10 +78,9 @@ typedef struct
     tsXStateList SL;       // [10] SL, 사이즈 가변
     F32 Time;              // [11] [sec] 시스템 가동 후 시간 = gTriggerTime
     /**──────────────────────────────── 여기까지 기본 포멧 [수정하지 말것!~] */
-
-    tsXCD_LED LED;         //
-    tsXCD_RobotDoor Door;  //
-    tsXCD_ServoA6 ServoA6; //
+    tsXCD_Decapper 		Decapper;			//Command 시 특정 값에 따른 동작 수행
+    xCDecapping_Grip	CT;					//CT CAP/Body Grip ON/OFF
+    tsxCDcap xCDecap;
 
 } tsXControlData;
 
@@ -81,11 +88,7 @@ typedef struct
 {
     tsXPL_Header Header;
     /**──────────────────────────────── 여기까지 기본 포멧 [수정하지 말것!~] */
-
-    tsXPL_LED LED;         //
-    tsXPL_RobotDoor Door;  //
-    tsXPL_ServoA6 ServoA6; //
-
+    tsXPL_Decapper Decapper;				//Capping, Decapping에 관한 파라미터
 } tsXParameterList;
 
 #pragma pack(pop)
@@ -93,6 +96,8 @@ typedef struct
 extern tsXStateList xSL;
 extern tsXControlData xCD;
 extern tsXParameterList xPL;
+extern teXActionType xAT;
+extern SystemInfo_t SystemInfo;
 
 void SystemDB_Initialize(void);
 

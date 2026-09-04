@@ -84,7 +84,7 @@ void xCreateTask(void)
 
   /*[]. watchdog task */
 #if configWatchDog_ENABLE
-  xTaskCreate(TASK_Watchdog, "Task_WDG", 128, NULL, 3, NULL);
+  xTaskCreate(TASK_Watchdog, "T7ask_WDG", 128, NULL, 3, NULL);
 #endif
 }
 

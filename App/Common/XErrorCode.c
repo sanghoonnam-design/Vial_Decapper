@@ -33,6 +33,8 @@ const tsErrorEntry gErrorTable[] =
         {ERROR_CODE_ROBOT_DOOR_ALREADY_OPEN, /*  */ _WARNING, /*  */ "The robot door is already open."},
         {ERROR_CODE_ROBOT_DOOR_ALREADY_CLOSE, /* */ _WARNING, /*  */ "The robot door is already closed."},
         {ERROR_CODE_ROBOT_DOOR_MOVING, /*        */ _WARNING, /*  */ "The robot door is moving."},
+        {ERROR_CODE_ROBOT_DOOR_NOT_CLOSE, /*     */ _WARNING, /*  */ "The robot door is not closed."},
+        {ERROR_CODE_ROBOT_DOOR_NOT_OPEN, /*      */ _WARNING, /*  */ "The robot door is not open."},
 
         {ERROR_CODE_CENT_BLOCKED_DOOR_OPEN, /*   */ _CRITICAL, /* */ "Centrifuge blocked: Robot door is open."},
         // {ERROR_CODE_CENT_RUNNING, /*             */ _CRITICAL, /* */ "Centrifuge is running."},
@@ -47,6 +49,7 @@ const tsErrorEntry gErrorTable[] =
         {ERROR_CODE_REFRIGERATOR_NOT_INIT, /*    */ _CRITICAL, /* */ "Refrigerator not initialized."},
 
         {ERROR_CODE_A6_DRIVER_ERROR, /*          */ _CRITICAL, /* */ "Servo driver error detected."},
+        {ERROR_CODE_A6_DRIVER_NOT_CONNECTED, /*  */ _CRITICAL, /* */ "Servo driver not connected."},
 
         {ERROR_CODE_A6_SERVO_TIMEOUT, /*         */ _CRITICAL, /* */ "Servo driver operation timed out."},
         {ERROR_CODE_A6_SERVO_NOT_INIT, /*        */ _CRITICAL, /* */ "Servo driver: not initialized."},

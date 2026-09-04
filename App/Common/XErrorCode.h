@@ -38,6 +38,8 @@ typedef enum
     ERROR_CODE_ROBOT_DOOR_ALREADY_OPEN /*  */ = 2117, // 이미 문 열려있어 이놈아.
     ERROR_CODE_ROBOT_DOOR_ALREADY_CLOSE /* */ = 2118, // 이미 문 닫혀있어 이놈아.
     ERROR_CODE_ROBOT_DOOR_MOVING /*        */ = 2119, // 로봇 움직이고 있어.
+    ERROR_CODE_ROBOT_DOOR_NOT_CLOSE /*     */ = 2120, // 로봇 door 닫히지 않음.
+    ERROR_CODE_ROBOT_DOOR_NOT_OPEN /*      */ = 2121, // 로봇 door 열리지 않음.
 
     ERROR_CODE_CENT_BLOCKED_DOOR_OPEN /*   */ = 2130, // Safety interlock: door open blocks centrifuge
     // ERROR_CODE_CENT_RUNNING /*             */ = 2135, // centrifuge running
@@ -52,6 +54,7 @@ typedef enum
     ERROR_CODE_REFRIGERATOR_NOT_INIT /*    */ = 2450,
 
     ERROR_CODE_A6_DRIVER_ERROR /*          */ = 2500,
+    ERROR_CODE_A6_DRIVER_NOT_CONNECTED /*  */ = 2510,
 
     ERROR_CODE_A6_SERVO_TIMEOUT /*         */ = 2600,
     ERROR_CODE_A6_SERVO_NOT_INIT /*        */ = 2610,

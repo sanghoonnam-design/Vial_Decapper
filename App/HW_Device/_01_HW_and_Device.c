@@ -29,7 +29,7 @@ void HW_Init(void)
     SystemClock_Config(); /* Configure the system clock */
 
     /* CPU 내장 시리얼 통신 초기화: USB 1ch, RS485, TS232 */
-    Serial_t usb, rs485, ts232;
+    Serial_t usb, rs485, ts232;     //
     usb.baudrate = BAUDRATE_115200; // usb
     usb.parity = PARITY_NONE;       //
     usb.stopbit = UART_STOPBITS_1;  //
@@ -50,8 +50,8 @@ void HW_Init(void)
     IOEXP_Init();  // Digital IO init.
     SW_Init();     // Switch init.
     EEPROM_Init(); // EEPROM init.
-    SWRTC_Init();
-    Drive_Init(); // Step motor driver init.
+    SWRTC_Init();  //
+    Drive_Init();  // Step motor driver init.
 
     Can_t c0;
     c0.baudrate = BAUDRATE_1M;
@@ -67,8 +67,7 @@ void HW_Init(void)
 
 void DEV_Init(void)
 {
-    Initialize_RobotDoor();
-    Initialize_ServoA6();
+
 }
 
 /**

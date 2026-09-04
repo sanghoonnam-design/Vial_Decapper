@@ -147,6 +147,8 @@ void SYSPL_UpdategEepromStructure(void)
     gEEPROM.hwInfo.network.portNum = (U32)xSystemInfo.network.portNum;
 
     memcpy(&gEEPROM.sysInfo.xPL, &xPL, sizeof(tsXParameterList));
+
+    gEEPROM.crc = CRC_Calculate((U8 *)&gEEPROM, sizeof(tsEEPROM_Config) - sizeof(U16));
 }
 
 /** *****************************************************************************
@@ -214,7 +216,8 @@ void SYSPL_UpdateFromEeprom_Flash(tsEEPROM_Config *config)
     } // TODO 에러코드 추가
 
     //[]. 3단계: 최종 실패 시 Factory Reset
-    SYSPL_FactorySetting(); // TODO 에러코드 추가
+    //SetErrorCode(ERROR_CODE_EEPROM_RECOVERY_FAILED, __func__, __LINE__);
+    SYSPL_FactorySetting();
 
     elapsedTime = HAL_GetTick() - startTime;
     ERR_MSG_SEND("[Step 3] SYSPL_FactorySetting() - completed in %lu ms", elapsedTime);
@@ -277,7 +280,7 @@ void EEPROMPL_SaveToEEPROM(void)
     U08 newBlock;
 
     xprintf("Saving to EEPROM... (size : %d bytes) ", sizeof(tsEEPROM_Config));
-    // uint32_t startTime = HAL_GetTick();
+    uint32_t startTime = HAL_GetTick();
 
     SYSPL_UpdategEepromStructure();
 
@@ -298,8 +301,8 @@ void EEPROMPL_SaveToEEPROM(void)
 
     EEPROM_WriteBlock(newBlock, &gEEPROM);
 
-    //    uint32_t elapsedTime = HAL_GetTick() - startTime;
-    //    LOG_MSG_SEND("Writing to new block %d with updateCount %d. - completed in %lu ms", newBlock, gEEPROM.updateCount, elapsedTime);
+    uint32_t elapsedTime = HAL_GetTick() - startTime;
+    LOG_MSG_SEND("Writing to new block %d with updateCount %d. - completed in %lu ms", newBlock, gEEPROM.updateCount, elapsedTime);
 }
 
 /**
@@ -361,6 +364,7 @@ static bool IsFactorySetting(tsEEPROM_Config *config)
     return config->header.FactorySetConfirm_Key == EEPROM_FACTORY_SETTING_KEY;
 }
 
+#if 0
 static bool ValidateEEPROMData(tsEEPROM_Config *config)
 {
     if (!IsFactorySetting(config))
@@ -373,6 +377,15 @@ static bool ValidateEEPROMData(tsEEPROM_Config *config)
 
     return (calculatedCRC == config->crc);
 }
+#else // 임시 사용
+static bool ValidateEEPROMData(tsEEPROM_Config *config)
+{
+    if (IsFactorySetting(config))
+        isEEPROM_OK = YES;
+
+    return isEEPROM_OK;
+}
+#endif
 
 #if 0
 /* 최신 유효한 블록 찾기 */
@@ -556,7 +569,7 @@ void EEPROMPL_ClearEEPROM(void)
     U8 zeroBuffer[64] = {0};
     volatile U32 addr = 0;
 
-    xprintf("\r\nClear EEPROM %d bytes...", EEPROM_SIZE);
+    xprintf("Clear EEPROM %d bytes...", EEPROM_SIZE);
 
     while (addr < EEPROM_SIZE)
     {
@@ -635,7 +648,7 @@ void EEPROMPL_PrintEepromStructure_user(void) // 디버깅 코드
     U08 i = 1;
 
     __newLine();
-    xprintf("\r\n  [--]%8d, %8d : gEEPROM.updateCount", gEEPROM.updateCount, gEEPROM.updateCount);
+    xprintf("  [--]%8d, %8d : gEEPROM.updateCount", gEEPROM.updateCount, gEEPROM.updateCount);
     xprintf("  [--]%8X, %8X : gEEPROM.header.FactorySetConfirm_Key\r\n", gEEPROM.header.FactorySetConfirm_Key, gEEPROM.header.FactorySetConfirm_Key);
 
     xprintf("  [--]%8d, %8d : system, gEEPROM.header.FW_Version", (U32)xSystemInfo.pl_FW_Version, gEEPROM.header.FW_Version);
@@ -665,5 +678,5 @@ void EEPROMPL_PrintEepromStructure_user(void) // 디버깅 코드
 
     // @USER CODE END
 
-    xprintf("\r\n  [--]%08X, %08X : gEEPROM.crc", gEEPROM.crc, gEEPROM.crc);
+    xprintf("  [--]%08X, %08X : gEEPROM.crc", gEEPROM.crc, gEEPROM.crc);
 }

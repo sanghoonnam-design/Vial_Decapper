@@ -14,7 +14,7 @@
 
 #include "project.h"
 
-#define MAX_CHAR_NUM (10) // command length
+#define MAX_CHAR_NUM (16) // command length
 
 typedef struct
 {
@@ -36,8 +36,9 @@ bool XBuffer_AddChar(tsXBuffer *xBuffer, char data, bool isAddComma);
 bool XBuffer_AddString(tsXBuffer *xBuffer, const char *data, bool isAddComma);
 bool XBuffer_AddCommandString(tsXBuffer *xBuffer, const char *data, bool isAddComma);
 bool XBuffer_AddInt(tsXBuffer *xBuffer, int data, bool isAddComma);
+bool XBuffer_AddUInt(tsXBuffer *xBuffer, unsigned int data, bool isAddComma);
 bool XBuffer_AddLong(tsXBuffer *xBuffer, long data, bool isAddComma);
-bool XBuffer_Addfloat(tsXBuffer *xBuffer, float data, bool isAddComma);
+bool XBuffer_AddFloat(tsXBuffer *xBuffer, float data, bool isAddComma);
 bool XBuffer_AddDouble(tsXBuffer *xBuffer, double data, bool isAddComma);
 bool XBuffer_AddDoubleWithPrecision(tsXBuffer *xBuffer, double data, signed char width, signed char prec, bool isAddComma);
 bool XBuffer_AddByte(tsXBuffer *xBuffer, unsigned char data, bool isAddComma);

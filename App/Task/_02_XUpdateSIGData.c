@@ -11,6 +11,7 @@
 #include "_02_zUpdate_Temperature.h"
 #include "XFilter.h"
 #include "XDebug.h"
+#include "CDecap.h"
 
 Semaphore_Handle semHD_USD;
 
@@ -42,12 +43,9 @@ VOID TASK_UpdateSIGData(void *pvParameters)
             }
             XTP_CheckTaskUsingLED(XHW_STATUS_LED_2);
             //===============================================================
-
-            xDoor.Update(); 
-            xServoA6.Update();
-
-            xSL.isBusy = xDoor.IsBusy() || xServoA6.IsBusy();
-
+            xCDecap.Senser_Update();
+            xCDecap.Status_Update();//
+            xCDecap.CT_Cap_Body_Update();
             //===============================================================
             gTick_USD = ITIMER_StopMeasure_us(startTick);
             __TASK_TRIGGER_END_Using(TEST_PORT_1, TP_IDX_taskUSD);

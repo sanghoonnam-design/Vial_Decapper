@@ -16,7 +16,7 @@
 
 #define MAX_CMD_LEN (20)         // 최대 명령어 길이
 #define MAX_PARAMS (10)          // 최대 파라미터 개수
-#define BUFFER_SIZE_RX_MSG (256) // 링 버퍼 크기  // ⚠️TODO
+#define BUFFER_SIZE_RX_MSG (256) // 링 버퍼 크기  // TODO
 
 typedef enum
 {
@@ -31,8 +31,9 @@ typedef enum
 
 typedef enum
 {
-    PARAM_TYPE_INT = 0,  // int 타입 파라미터
-    PARAM_TYPE_FLOAT = 1 // float 타입 파라미터
+    PARAM_TYPE_NONE /* */ = 0, // 입력 없음
+    PARAM_TYPE_INT /*  */ = 1, // int 타입 파라미터
+    PARAM_TYPE_FLOAT /**/ = 2  // float 타입 파라미터
 } ParamType;
 
 typedef struct
@@ -48,6 +49,7 @@ typedef struct
 
 typedef struct
 {
+    char RawBuffer[50];
     char Command[MAX_CMD_LEN];
     tsParam Params[MAX_PARAMS]; // 파라미터 배열 (int 또는 float 지원)
     int ParamCount;

@@ -11,7 +11,6 @@
 #include "_04_XDiagnose.h"
 #include "_06_XAppControl.h"
 #include "XSystem_DB.h"
-#include "Dev_RobotDoor.h"
 #include "XDebug.h"
 
 Semaphore_Handle semHD_SFZ;
@@ -43,15 +42,7 @@ VOID TASK_SamplingFinalization(void *pvParameters)
             /**************************************************************** */
 
             // [0]. 통신으로 노드별 데이터 요청
-            __xTime_After(__2sec)
-            {
-                __xTime_Per(__100msec){
-                 //  xServoA6.Update_RS485_Tx();
-                }
-            }
 
-            TMC2660_ControlCurrent(0);
-			Drive_GetStatus(0, &MotionStatus);
 
             ErrorMonitor();
 
@@ -67,7 +58,7 @@ VOID TASK_SamplingFinalization(void *pvParameters)
 
             if (xNet.isConnected_TCP == YES)
             {
-                // SystemDB_CD_PushAll();
+                //SystemDB_CD_PushAll(); //TODO
             }
             SFZ_TaskMonitoring();
             gTick_SFZ = ITIMER_StopMeasure_us(startTick);

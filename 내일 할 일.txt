@@ -1,0 +1,21 @@
+Vial Decapper - 다음 작업
+
+1. Z축 티칭값 Flash 저장/로드
+   - Flash에 유효한 티칭 데이터가 없으면 xPL 기본값으로 동작.
+   - Flash에 유효한 데이터가 있으면 아래 두 값만 xPL에 반영.
+     - xPL.Decapper.ZCap_UpPos
+     - xPL.Decapper.ZCap_SidePos
+   - 전체 xPL을 덮어쓰지 않고, 티칭값 전용 구조체(magic, version, 두 위치값, CRC) 사용.
+   - SAVEF / LOADF 및 부팅 시 로드 흐름 검토.
+
+2. SL / CD / PL 및 Command 정리
+   - xSL: 현재 센서·상태값
+   - xCD: 제어 중 변경되는 값
+   - xPL: 초기 설정값·파라미터
+   - 실제 사용하지 않는 선언은 삭제 또는 예약/미사용 주석 처리.
+   - Command 출력(SL, CD, PL)과 데이터 구조의 대응 관계 점검.
+
+3. 버전 관리 정리
+   - FW Version, UpdateDate, SystemType, ModelType 갱신 및 저장 흐름 확인.
+   - EEPROM/Flash 저장 시 버전 및 CRC 처리 기준 정리.
+

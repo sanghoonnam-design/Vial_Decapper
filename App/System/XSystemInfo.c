@@ -10,6 +10,8 @@
 #include "FreeRTOS.h"
 #include "task.h"
 #include "XSystem_DB.h"
+
+#include "XModbus.h"
 #include "bootloader.h"
 
 tsXSystemInfo xSystemInfo;
@@ -51,6 +53,24 @@ void System_Initialize(void)
 
     EEPROMPL_Initialize();                  //
     SYSPL_UpdateFromEeprom_Flash(&gEEPROM); // EEPROM 으로 부터 system 파라미터 초기화
+    
+    U16 crc = CRC_Calculate((U8 *)&gEEPROM, sizeof(tsEEPROM_Config) - sizeof(U16));
+    
+    if (gEEPROM.header.FactorySetConfirm_Key == EEPROM_FACTORY_SETTING_KEY)
+    {
+        if (crc != gEEPROM.crc)
+        {
+            gEEPROM.header.isCrcValid = NO;
+        }
+        else
+        {
+            gEEPROM.header.isCrcValid = YES;
+        }
+    }
+    else
+    {
+        SYSPL_FactorySetting();
+    }
 
     //==========================================================================
     if (xSystemInfo.pl_FW_Version != FW_VERSION || // 시스템 정보 최신화 체크
@@ -68,9 +88,8 @@ void System_Initialize(void)
     }
     makeVersionString();
 
+    // ==========================================================================
     BootParamInfo_SetNetworkIP(xSystemInfo.network);
-    //    ==========================================================================
-
     Network_Init(); // EEPROM 로딩이 끝나면 network 정보 반영 및 초기화
 
 #if configWatchDog_ENABLE
@@ -81,7 +100,7 @@ void System_Initialize(void)
 SET_GET_FUNC_0_IMPL(SystemInfo, U08, sl_isStartMainLoop)
 SET_GET_FUNC_0_IMPL(SystemInfo, F32, cd_CpuUsage)
 SET_GET_FUNC_0_IMPL(SystemInfo, F32, cd_CpuTemperature)
-// SET_GET_FUNC_0_IMPL(SystemInfo, U32, pl_FW_Version)
+//SET_GET_FUNC_0_IMPL(SystemInfo, U32, pl_FW_Version)
 SET_GET_FUNC_0_IMPL(SystemInfo, U08, pl_FW_Mode)
 SET_GET_FUNC_0_IMPL(SystemInfo, U32, pl_IsExecutedDiagnosis)
 
@@ -150,10 +169,8 @@ const char *GetSystemTypeString(void)
     return SYSTEM_TYPE_STR;
 }
 
-const char *GetModelTypeString(void)
-{
-    switch (GetModelType())
-    {
+const char *GetModelTypeString(void){
+    switch (GetModelType()){
     case MODEL_01:
         return "MODEL-01";
     case MODEL_02:

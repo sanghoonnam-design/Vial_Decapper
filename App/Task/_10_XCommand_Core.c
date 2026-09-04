@@ -21,45 +21,61 @@ tsXBuffer *xSendMsg; // host -> client 전송 메시지버퍼
 SemaphoreHandle_t xMutex_Command;
 
 tsXCommandMapping gCoreCommandTable[] = {
+	/*User Command*/
+	{0, "VER",	/*		*/ CMD_Handle_VERS, /*					*/ "Get the FW version.", /*			*/ "VERSION"},   // 버전 정보 읽기
+    {0, "VERS", /*      */ CMD_Handle_VERS, /*					*/ "Get the FW version.", /*			*/ "VERS"},      // 버전 정보 읽기
+    {0, "VERSION", /*	*/ CMD_Handle_VERS, /*					*/ "Get the FW version.", /*			*/ "VERSION"},   // 버전 정보 읽기
 
-    {0, "VERS", /*      */ CMD_Handle_VERS, /*                */ "Get the FW version.", /*         */ "VERS"},      // 버전 정보 읽기
-    {1, "VERSION", /*   */ CMD_Handle_VERS, /*                */ "Get the FW version.", /*         */ "VERSION"},   // 버전 정보 읽기
-    {0, "GERR", /*      */ CMD_Handle_GERR, /*                */ "Get the Error-code.", /*         */ "GERR"},      // 에러 코드 반환
-    {1, "ERR", /*       */ CMD_Handle_GERR, /*                */ "Get the Error-code.", /*         */ "ERR"},       // 에러 코드 반환
-    {0, "GERD", /*      */ CMD_Handle_GERD, /*                */ "Get the Error-message.", /*      */ "GERD"},      // 에러 메시지 반환
-    {1, "ERD", /*       */ CMD_Handle_GERD, /*                */ "Get the Error-message.", /*      */ "ERD"},       // 에러 메시지 반환
-    {0, "CLER", /*      */ CMD_Handle_CLER, /*                */ "Clear errors.", /*               */ "CLER"},      // 에러 클리어
-    {0, "DRT", /*       */ CMD_Handle_CLER, /*                */ "Clear errors.", /*               */ "DRT"},       // 에러 클리어
-    {1, "CLEAR", /*     */ CMD_Handle_CLER, /*                */ "Clear errors.", /*               */ "CLEAR"},     // 에러 클리어
-    {0, "SAVEE", /*     */ CMD_Handle_SAVEE, /*               */ "Param. save to EEPROM.(Ctrl+S)", /**/ "SAVEE"},   // EEPROM 저장
-    {1, "LOADE", /*     */ CMD_Handle_LOADE, /*               */ "Read Params from EEPROM.(Ctrl+L)", /**/ "LOADE"}, // EEPROM 에서 읽어옴.
-    {0, "FACT", /*      */ CMD_Handle_FACTORY, /*             */ "Factory setting.", /*            */ "FACT"},      // factory 셋팅
-    {1, "FACTORY", /*   */ CMD_Handle_FACTORY, /*             */ "Factory setting.", /*            */ "FACTORY"},   // factory 셋팅
-    {1, "PPARAM", /*    */ CMD_Handle_PrintParams, /*         */ "Display Params.", /*             */ "PPARAM"},    // EEPROM 셋팅값 읽어오기
+	{0, "GERR", /*      */ CMD_Handle_GERR, /*					*/ "Get the Error-code.", /*			*/ "GERR"},      // 에러 코드 반환
+    {0, "ERR", /*       */ CMD_Handle_GERR, /*					*/ "Get the Error-code.", /*			*/ "ERR"},       // 에러 코드 반환
 
-    {1, "SYSTEM", /*    */ CMD_Handle_ContFullInfo, /*        */ "Controller information", /*      */ "SYSTEM"},              // 하드웨어 정보 출력
-    {1, "SETIP", /*     */ CMD_Handle_SetIP, /*               */ "Set IP", /*                      */ "SETIP 192,168,0,150"}, // IP 셋팅
-    {1, "TASK", /*      */ CMD_Handle_TaskList, /*            */ "Check Task state", /*            */ "TASK"},                // Task  정보 출력
-    {1, "STACK", /*     */ CMD_Handle_StackSize, /*           */ "Check Task Stack-Size", /*       */ "STACK"},               // stack size 정보 출력
-    {0, "REBO", /*      */ CMD_Handle_REBOOT, /*              */ "Reboing.", /*                    */ "REBOOT"},              // 리부트 실행
-    // {1, "RESET", /*     */ CMD_Handle_REBOOT, /*              */ "Reboototing.", /*                */ "REBO"},                                 // 리부트 실행
-    {1, "REBOOT", /*    */ CMD_Handle_REBOOT, /*              */ "Rebooting.", /*                  */ "RESET"},                                // 리부트 실행
+	{0, "GERD", /*      */ CMD_Handle_GERD, /*					*/ "Get the Error-message.", /*			*/ "GERD"},      // 에러 메시지 반환
+    {0, "ERD", /*       */ CMD_Handle_GERD, /*					*/ "Get the Error-message.", /*			*/ "ERD"},       // 에러 메시지 반환
+
+	{0, "CLR", /*		*/ CMD_Handle_CLER, /*					*/ "Clear errors.", /*					*/ "CLER"},      // 에러 클리어
+    {0, "DRT", /*       */ CMD_Handle_CLER, /*					*/ "Clear errors.", /*					*/ "DRT"},       // 에러 클리어
+    {0, "CLEAR", /*     */ CMD_Handle_CLER, /*					*/ "Clear errors.", /*					*/ "CLEAR"},     // 에러 클리어
+	/*Dubug Command*/
+	{1, "RESET", /*     */ CMD_Handle_REBOOT, /*				*/ "Reboototing.", /*					*/ "REBO"},                                 // 리부트 실행
+	{1, "REBO", /*      */ CMD_Handle_REBOOT, /*				*/ "Reboing.", /*						*/ "REBOOT"},              // 리부트 실행
+	{1, "REBOOT", /*    */ CMD_Handle_REBOOT, /*				*/ "Rebooting.", /*						*/ "RESET"},                                // 리부트 실행
+
+	{1, "IP", /*        */ CMD_Handle_SetGetIP, /*				*/ "Set/Get IP", /*						*/ "IP 192,168,0,150"},  // IP 셋팅/읽기
+	{1, "SETIP", /*	    */ CMD_Handle_SetGetIP, /*				*/ "Set/Get IP", /*						*/ "IP 192,168,0,150"},  // IP 셋팅/읽기
+
+	{1, "RTC", /*       */ CMD_Handle_RTC, /*					*/ "Set/Get the RTC", /*				*/ "RTC y,m,d,h,min,s"}, // 리부트 실행
+	{1, "DATE", /*      */ CMD_Handle_RTC, /*					*/ "Set/Get the RTC", /*				*/ "RTC y,m,d,h,min,s"}, // 리부트 실행
+
+	{1, "SYSTEM", /*    */ CMD_Handle_ContFullInfo, /*			*/ "Controller information", /*			*/ "SYSTEM"},              // 하드웨어 정보 출력
+	{1, "SYS", /*		*/ CMD_Handle_ContFullInfo, /*			*/ "Controller information", /*			*/ "SYSTEM"},              // 하드웨어 정보 출력
+
+    {1, "FACT", /*      */ CMD_Handle_FACTORY, /*				*/ "Factory setting.", /*				*/ "FACT"},      // factory 셋팅
+    {1, "FACTORY", /*   */ CMD_Handle_FACTORY, /*				*/ "Factory setting.", /*				*/ "FACTORY"},   // factory 셋팅
+
+    {1, "DO", /*        */ CMD_Handle_DO, /*					*/ "Set GPIO output.", /*				*/ "DO (ch 1~24), (val 1/0)"},              // GPIO 출력값 쓰기 (중복)
+    {1, "DI", /*        */ CMD_Handle_DI, /*					*/ "Get GPIO input.", /*				*/ "DI (ch 1~16)"},                         // GPIO 출력값 쓰기
+
+	{1, "LOAD", /*		*/ CMD_Handle_LOADE, /*					*/ "Read Params from EEPROM.(Ctrl+L)", /*	*/ "LOADE"}, // EEPROM 에서 읽어옴.
+	{1, "SAVE", /*      */ CMD_Handle_SAVEE, /*					*/ "Param. save to EEPROM.(Ctrl+S)", /*		*/ "SAVEE"},   // EEPROM 저장
+
+	/*===============================Vial Decapper API 이외의 Command=================================================================================================================================*/
+	//{1, "SETIP", /*     */ CMD_Handle_SetIP, /*               */ "Set IP", /*                      */ "SETIP 192,168,0,150"}, // IP 셋팅
+	{1, "PPARAM", /*    */ CMD_Handle_PrintParams, /*			*/ "Display Params.", /*				*/ "PPARAM"},    // EEPROM 셋팅값 읽어오기
+    {1, "TASK", /*      */ CMD_Handle_TaskList, /*				*/ "Check Task state", /*				*/ "TASK"},                // Task  정보 출력
+    {1, "STACK", /*     */ CMD_Handle_StackSize, /*				*/ "Check Task Stack-Size", /*			*/ "STACK"},               // stack size 정보 출력
                                                                                                                                                //
-    {1, "DI", /*        */ CMD_Handle_DI, /*                  */ "Get GPIO input.", /*             */ "DI (ch 1~16)"},                         // GPIO 출력값 쓰기
-    {1, "DO", /*        */ CMD_Handle_DO, /*                  */ "Set GPIO output.", /*            */ "DO (ch 1~24), (val 1/0)"},              // GPIO 출력값 쓰기 (중복)
+    {1, "DB", /*        */ CMD_Handle_DebugMode, /*				*/ "Toggle Debugging-Flags", /*			*/ "DEBUG ? or (flag index)"},              // @USER CODE, 각 모듈별 디버그 모드를 셋팅한다.
+    {1, "SIZE", /*      */ CMD_Handle_GetSize, /*				*/ "Get Size of strut.", /*				*/ "SIZE"},                                 // @USER CODE, 데이터 사이즈 정보 출력용
+    {1, "MODE", /*      */ CMD_Handle_FWMode, /*				*/ "Handle the FW-Mode", /*				*/ "MODE 0(0=default,1=idle,2=timer off)"}, // @USER CODE, 시스템 모드
+    {1, "HT", /*        */ CMD_Handle_HWTest, /*				*/ "Controller HW Test", /*				*/ "HT 0(?)"},                              // @USER CODE, 제어기 HW 테스트
                                                                                                                                                //
-    {1, "DB", /*        */ CMD_Handle_DebugMode, /*           */ "Toggle Debugging-Flags", /*      */ "DEBUG ? or (flag index)"},              // @USER CODE, 각 모듈별 디버그 모드를 셋팅한다.
-    {1, "SIZE", /*      */ CMD_Handle_GetSize, /*             */ "Get Size of strut.", /*          */ "SIZE"},                                 // @USER CODE, 데이터 사이즈 정보 출력용
-    {1, "MODE", /*      */ CMD_Handle_FWMode, /*              */ "Handle the FW-Mode", /*          */ "MODE 0(0=default,1=idle,2=timer off)"}, // @USER CODE, 시스템 모드
-    {1, "HT", /*        */ CMD_Handle_HWTest, /*              */ "Controller HW Test", /*          */ "HT 0(?)"},                              // @USER CODE, 제어기 HW 테스트
+    {1, "TT", /*        */ CMD_Handle_TaskTrigger, /*			*/ "Debug-Trigger on/off", /*			*/ "TRIGGER 0~9"},                          // @USER CODE, TestPort 동작 제어
+    {1, "TIMER", /*     */ CMD_Handle_TimerOnOff, /*			*/ "HW Timer on/off(Toggle)", /*		*/ "Timer"},                                // @USER CODE, HW Timer On/Off
+    {1, "NOP", /*       */ CMD_Handle_NoOperation, /*			*/ "No Operation Command", /*			*/ "NOP"},                                  // No Operation Code
                                                                                                                                                //
-    {1, "TT", /*        */ CMD_Handle_TaskTrigger, /*         */ "Debug-Trigger on/off", /*        */ "TRIGGER 0~9"},                          // @USER CODE, TestPort 동작 제어
-    {1, "TIMER", /*     */ CMD_Handle_TimerOnOff, /*          */ "HW Timer on/off(Toggle)", /*     */ "Timer"},                                // @USER CODE, HW Timer On/Off
-    {1, "NOP", /*       */ CMD_Handle_NoOperation, /*         */ "No Operation Command", /*        */ "NOP"},                                  // No Operation Code
-                                                                                                                                               //
-    {1, "CLC", /*       */ CMD_Handle_ClearScreen, /*         */ "Clear Screen(Console)", /*       */ "clc"},                                  // clear screen(콘솔)
-    {1, "??", /*        */ CMD_Handle_Help_All, /*            */ "Help(all command)", /*           */ "??"},                                   // 모든 Help 명령 출력
-    {1, "?", /*         */ CMD_Handle_Help, /*                */ "Help", /*                        */ "?"},                                    // 실제 시스템 에서 사용하는 명령 출력
+    {1, "CLC", /*       */ CMD_Handle_ClearScreen, /*			*/ "Clear Screen(Console)", /*			*/ "clc"},                                  // clear screen(콘솔)
+    {1, "??", /*        */ CMD_Handle_Help_All, /*				*/ "Help(all command)", /*				*/ "??"},                                   // 모든 Help 명령 출력
+    {1, "?", /*         */ CMD_Handle_Help, /*					*/ "Help", /*							*/ "?"},                                    // 실제 시스템 에서 사용하는 명령 출력
 };
 
 static const int gCoreCommandCount = sizeof(gCoreCommandTable) / sizeof(tsXCommandMapping);
@@ -216,7 +232,7 @@ bool CMD_ShouldSkip_USBResponse(const tsXParsedData *parsedData)
 {
     // USB로 응답/에코 생략할 명령어 리스트, 필요에 따라 추가
     static const char *noEchoOnUSB[] = {
-        "CLC", "TASK", "STACK", "?", "??", "??R", "FACT", "SAVEE", "LOADE", "PSTA"};
+        "CLC", "TASK", "STACK", "?", "??", "??R", "LOADE", "PSTA"};
 
     if (parsedData == NULL)
         return false;
@@ -296,21 +312,9 @@ void CMD_Handle_GERD(const tsXParsedData *parsedData, U08 useTCP)
     }
 }
 
-void CMD_Handle_CLER(const tsXParsedData *parsedData, U08 useTCP)
-{
-    if (parsedData->ParamCount == 0)
-    {
-        if (xServoA6.IsDriverError())
-        {
-            xPL.ServoA6.CMD_StartControl = YES;
-            xPL.ServoA6.CMD_ControlMode = A6_CONTROL_MODE_RESET;
-        }
-        else
-        {
-            ClearError();
-            // xPL.ServoA6.CMD_StartControl = YES;
-            // xPL.ServoA6.CMD_ControlMode = A6_CONTROL_MODE_ERRCLEAR;
-        }
+void CMD_Handle_CLER(const tsXParsedData *parsedData, U08 useTCP){
+    if (parsedData->ParamCount == 0){
+    	CDecap_Error_Clear();
     }
     else
     {
@@ -625,6 +629,150 @@ void CMD_Handle_REBOOT(const tsXParsedData *parsedData, U08 useTCP)
     NVIC_SystemReset(); // 리셋하시오.
 }
 
+
+void CMD_Handle_RTC(const tsXParsedData *parsedData, U08 useTCP)
+{
+    SW_DateTime_t dt;
+
+    // help
+    if (IS_USB(useTCP) && IS_CMD_HELP(parsedData))
+    {
+        int i = 1;
+        xprintf("\tCommand: [RTC] [year, month, day, hour, min, sec]");
+        xprintf("\t===============================");
+        xprintf("\t %d) RTC                      : Get the current RTC.", i++);
+        xprintf("\t %d) RTC xx,xx,xx,xx,xx,xx,xx : Set a new RTC.", i++);
+        xprintf("\r\n");
+        xprintf("\t ex) Get : RTC ");
+        xprintf("\t ex) Set : RTC 25,02,22,3,12,10 => 25/2/22, 03:12:10");
+        return;
+    }
+
+    // Get the current RTC
+    if (IS_CMD_PARAM_NONE(parsedData))
+    {
+        SWRTC_GetParam(&dt);
+        XBuffer_AddU08(xSendMsg, dt.year, COMMA);
+        XBuffer_AddU08(xSendMsg, dt.month, COMMA);
+        XBuffer_AddU08(xSendMsg, dt.day, COMMA);
+        XBuffer_AddU08(xSendMsg, dt.hour, COMMA);
+        XBuffer_AddU08(xSendMsg, dt.min, COMMA);
+        XBuffer_AddU08(xSendMsg, dt.sec, NO_COMMA);
+
+        xprintf("Date: " ANSI_TX_LightGreen
+                "20%02d-%02d-%02d, %02d:%02d:%02d" ANSI_TX_ORG,
+                dt.year, dt.month, dt.day, dt.hour, dt.min, dt.sec);
+        return;
+    }
+
+    // set a new RTC
+    else if (CMD_CheckParamAll_Int(parsedData, 6) &&
+             parsedData->Params[0].value._int >= 0 && parsedData->Params[0].value._int <= 99 && // year
+             parsedData->Params[1].value._int >= 1 && parsedData->Params[1].value._int <= 12 && // month
+             parsedData->Params[2].value._int >= 1 && parsedData->Params[2].value._int <= 31 && // date
+             parsedData->Params[3].value._int >= 0 && parsedData->Params[3].value._int <= 23 && // hour
+             parsedData->Params[4].value._int >= 0 && parsedData->Params[4].value._int <= 59 && // min
+             parsedData->Params[5].value._int >= 0 && parsedData->Params[5].value._int <= 59)   // sec
+    {
+        dt.year /*  */ = parsedData->Params[0].value._int;
+        dt.month /* */ = parsedData->Params[1].value._int;
+        dt.day /*  */ = parsedData->Params[2].value._int;
+        dt.hour /*  */ = parsedData->Params[3].value._int;
+        dt.min /*   */ = parsedData->Params[4].value._int;
+        dt.sec /*   */ = parsedData->Params[5].value._int;
+
+        SWRTC_SetParam(&dt);
+
+        SWRTC_GetParam(&dt);
+        LOG_MSG_SEND(ANSI_TX_LightGreen "[RTC Set]: 20%02d-%02d-%02d, %02d:%02d:%02d" ANSI_TX_ORG,
+                     dt.year, dt.month, dt.day, dt.hour, dt.min, dt.sec);
+
+        xSystemInfo.sl_isDateChanged = YES; // 날짜 변경 플래그 세팅
+    }
+    else
+    {
+        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT, __func__, __LINE__);
+        XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
+        if (parsedData->Params[0].value._int != '?')
+            xParser_HandleError(__func__, PARSER_ERR_INVALID_CMD, 0);
+    }
+}
+
+void CMD_Handle_SetGetIP(const tsXParsedData *parsedData, U08 useTCP)
+{
+    // help
+    if (IS_USB(useTCP) && IS_CMD_HELP(parsedData))
+    {
+        int i = 1;
+        xprintf("\tCommand: [IP] [xx,xx,xx,xx]");
+        xprintf("\t===============================");
+        xprintf("\t %d) IP             : Get the current IP address.", i++);
+        xprintf("\t %d) IP xx,xx,xx,xx : Set a new IP address. " ANSI_TX_LightGreen "Use commas (,) as separators." ANSI_TX_ORG, i++);
+        return;
+    }
+
+    // Get current IP address if no parameters, or set new IP if 4 parameters are provided
+    if (parsedData->ParamCount == 0)
+    {
+        XBuffer_AddInt(xSendMsg, xSystemInfo.network.ip[0], COMMA);
+        XBuffer_AddInt(xSendMsg, xSystemInfo.network.ip[1], COMMA);
+        XBuffer_AddInt(xSendMsg, xSystemInfo.network.ip[2], COMMA);
+        XBuffer_AddInt(xSendMsg, xSystemInfo.network.ip[3], COMMA);
+        XBuffer_AddInt(xSendMsg, xSystemInfo.network.portNum, NO_COMMA);
+
+        xprintf("current IP : %d.%d.%d.%d, %d",
+                (int)xSystemInfo.network.ip[0],
+                (int)xSystemInfo.network.ip[1],
+                (int)xSystemInfo.network.ip[2],
+                (int)xSystemInfo.network.ip[3],
+                (int)xSystemInfo.network.portNum);
+    }
+    else if (parsedData->ParamCount == 4)
+    {
+        U8 ip[4];
+
+        XTimer_Stop();
+        for (int i = 0; i < 4; i++)
+        {
+            int value = parsedData->Params[i].value._int;
+
+            if (value < 0 || value > 255)
+            {
+                SetErrorCode(ERROR_CODE_INVALID_ARGUMENT, __func__, __LINE__);
+                ERR_MSG_SEND("%s(%d): Invalid IP octet %d (must be 0–255)", __func__, __LINE__, value);
+                return;
+            }
+
+            ip[i] = (U8)value;
+        }
+
+        if ((ip[0] == 0 && ip[1] == 0 && ip[2] == 0 && ip[3] == 0) ||
+            (ip[0] == 255 && ip[1] == 255 && ip[2] == 255 && ip[3] == 255))
+        {
+            SetErrorCode(ERROR_CODE_INVALID_ARGUMENT, __func__, __LINE__);
+            ERR_MSG_SEND("%s(%d): Invalid IP address (all 0s or all 255s)", __func__, __LINE__);
+            return;
+        }
+
+        SystemInfo_Network_SetIP(&xSystemInfo.network, ip);
+        //// Network_Init(); // 수정된거 반영
+        // EEPROMPL_SaveToEEPROM();
+
+        __newLine();
+        LOG_MSG_SEND("IP address set to " ANSI_TX_LightGreen "%d.%d.%d.%d" ANSI_TX_ORG, ip[0], ip[1], ip[2], ip[3]);
+        LOG_MSG_SEND(ANSI_TX_LightRed "Please [REBOOT] after changing the IP address." ANSI_TX_ORG);
+
+        XTimer_Start();
+    }
+    else
+    {
+        SetErrorCode(ERROR_CODE_INVALID_ARGUMENT, __func__, __LINE__);
+        XBuffer_AddString(xSendMsg, GetErrorCode_char(), NO_COMMA);
+        if (parsedData->Params[0].value._int != '?')
+            xParser_HandleError(__func__, PARSER_ERR_INVALID_CMD, 0);
+    }
+}
+
 void CMD_Handle_DebugMode(const tsXParsedData *parsedData, U08 useTCP)
 {
     if (parsedData->ParamCount == 1 && parsedData->Params[0].type == PARAM_TYPE_INT)
@@ -702,12 +850,26 @@ void CMD_Handle_GetSize(const tsXParsedData *parsedData, U08 useTCP)
         xprintf("\tex) SIZE --> Get size of structures.\r\n");
 
         int j = 1;
+        U32 size;
+
         xprintf("\t\t[idx] [size] : [structure]");
         xprintf("\t\t====================================");
         xprintf("\t\t[%2d] %4d Bytes: size of gEEPROM.", j++, sizeof(tsEEPROM_Config));
-        xprintf("\t\t[%2d] %4d Bytes: size of xSL.", j++, sizeof(tsXStateList));
-        xprintf("\t\t[%2d] %4d Bytes: size of xCD.", j++, sizeof(tsXControlData));
-        xprintf("\t\t[%2d] %4d Bytes: size of xPL.", j++, sizeof(tsXParameterList));
+        
+        size = sizeof(tsXStateList);
+        xprintf("\t\t[%2d] %4d Bytes: size of xSL.", j++, size);
+        if (size % 4 != 0)
+            ERR_MSG_SEND("[ALIGN WARNING] tsXStateList size is not multiple of 4 (%d)", size);
+
+        size = sizeof(tsXControlData);
+        xprintf("\t\t[%2d] %4d Bytes: size of xCD.", j++, size);
+        if (size % 4 != 0)
+            ERR_MSG_SEND("[ALIGN WARNING] tsXControlData size is not multiple of 4 (%d)", size);
+
+        size = sizeof(tsXParameterList);
+        xprintf("\t\t[%2d] %4d Bytes: size of xPL.", j++, size);
+        if (size % 4 != 0)
+            ERR_MSG_SEND("[ALIGN WARNING] tsXParameterList size is not multiple of 4 (%d)", size);
     }
     else
     {
@@ -1168,7 +1330,7 @@ bool CMD_CheckParamAll_Float(const tsXParsedData *parsedData, int expectedCount)
     return true;
 }
 
-__attribute__ ((unused)) static void CLI_GetMaxHelpWidth(void)
+__attribute__((unused)) static void CLI_GetMaxHelpWidth(void)
 {
     int max = 0;
 
