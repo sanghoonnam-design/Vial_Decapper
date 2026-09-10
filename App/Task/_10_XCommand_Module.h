@@ -15,6 +15,8 @@
 
 extern const tsXCommandMapping gModuleCommandTable[];
 extern const int gModuleCommandCount;
+extern bool gZCapUpPosSavePending;
+extern S32 gZCapUpPosPendingValue;
 
 typedef enum
 {

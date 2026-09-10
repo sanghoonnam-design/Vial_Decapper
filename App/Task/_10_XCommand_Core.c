@@ -16,6 +16,7 @@
 #include "_04_XDiagnose.h"
 #include "XEEPROMParam.h"
 #include "XSystem_DB.h"
+#include "_10_XCommand_Module.h"
 
 tsXBuffer *xSendMsg; // host -> client 전송 메시지버퍼
 SemaphoreHandle_t xMutex_Command;
@@ -330,6 +331,11 @@ void CMD_Handle_SAVEE(const tsXParsedData *parsedData, U08 useTCP)
     if (parsedData->ParamCount == 0)
     {
         XTimer_Stop();
+        if (gZCapUpPosSavePending)
+        {
+            xPL.Decapper.ZCap_UpPos = gZCapUpPosPendingValue;
+            gZCapUpPosSavePending = false;
+        }
         // [YYMMDD] parameter를 EEPROM에 저장한 날짜 저장
         xPL.Header.UpdateDate = SWRTC_GetTime_YYMMDDHH();
 

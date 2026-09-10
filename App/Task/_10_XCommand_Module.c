@@ -16,6 +16,9 @@
 
 // #include "_04_XDiagnose_Def.h"
 
+bool gZCapUpPosSavePending = false;
+S32 gZCapUpPosPendingValue = 0;
+
 const tsXCommandMapping gModuleCommandTable[] =
     {
         /** @note USER CODE BEGIN */
@@ -1032,11 +1035,13 @@ void CMD_Handle_CGRIP(const tsXParsedData *parsedData, U08 useTCP)
             xParser_HandleError(__func__, PARSER_ERR_INVALID_CMD, 0);
     }
 }
-/*Debug Setting/Getting Command*/
+
 void CMD_Handle_RPOS(const tsXParsedData *parsedData, U08 useTCP)
 {
     if (parsedData->ParamCount == 0){
-        XBuffer_AddInt(xSendMsg, (int)CDecap_GetZPosition(), NO_COMMA);
+        gZCapUpPosPendingValue = CDecap_GetZPosition();
+        XBuffer_AddInt(xSendMsg, (int)gZCapUpPosPendingValue, NO_COMMA);
+        gZCapUpPosSavePending = true;
         xprintf("Currunt Z_Position = %ld",xCD.Decapper.Motor_CurPos);
     }
     else
