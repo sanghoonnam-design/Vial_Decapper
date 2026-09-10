@@ -18,12 +18,14 @@ from PySide6.QtWidgets import (
     QPlainTextEdit,
     QPushButton,
     QSplitter,
+    QSlider,
     QVBoxLayout,
     QWidget,
 )
 from PySide6.QtSerialPort import QSerialPortInfo
 
 from ui.serial_command_client import SerialCommandClient
+from ui.device_model_view import DeviceModelView
 from ui.tcp_command_client import TcpCommandClient
 
 
@@ -86,7 +88,6 @@ class MainWindow(QMainWindow):
                 background: #0ea5e9;
             }
             QSplitter::handle { background: #223452; }
-            QLabel#visual_pattern { color: #38bdf8; font-size: 76px; }
             QLabel#visual_caption { color: #6b88ad; font-size: 12px; font-weight: 600; }
             """
         )
@@ -125,18 +126,27 @@ class MainWindow(QMainWindow):
         visual_area = QGroupBox("Vial Decapper Image")
         visual_area.setObjectName("visual_area")
         visual_layout = QVBoxLayout(visual_area)
-        visual_layout.addStretch()
+        self.device_model_view = DeviceModelView()
+        visual_layout.addWidget(self.device_model_view, 1)
 
-        visual_pattern = QLabel("◈")
-        visual_pattern.setObjectName("visual_pattern")
-        visual_pattern.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        visual_layout.addWidget(visual_pattern)
+        preview_row = QHBoxLayout()
+        preview_row.addWidget(QLabel("이송 미리보기"))
+        preview_row.addWidget(QLabel("뒤"))
+        carriage_slider = QSlider(Qt.Orientation.Horizontal)
+        carriage_slider.setObjectName("carriage_preview_slider")
+        carriage_slider.setRange(0, 100)
+        carriage_slider.setAccessibleName("하단 이송부 앞뒤 위치 미리보기")
+        carriage_slider.setToolTip("3D 미리보기 전용 · 실제 장비는 움직이지 않습니다")
+        carriage_slider.valueChanged.connect(self.device_model_view.set_carriage_position)
+        preview_row.addWidget(carriage_slider, 1)
+        preview_row.addWidget(QLabel("앞"))
+        visual_layout.addLayout(preview_row)
 
-        visual_caption = QLabel("DEVICE IMAGE PREVIEW")
+        visual_caption = QLabel("간이 3D 모델 · 실제 치수와 다를 수 있습니다\n드래그: 회전 · 휠: 확대 · 더블클릭: 초기화")
+        visual_caption.setWordWrap(True)
         visual_caption.setObjectName("visual_caption")
         visual_caption.setAlignment(Qt.AlignmentFlag.AlignCenter)
         visual_layout.addWidget(visual_caption)
-        visual_layout.addStretch()
         content_splitter.addWidget(visual_area)
 
         right_splitter = QSplitter(Qt.Orientation.Vertical)
@@ -159,11 +169,27 @@ class MainWindow(QMainWindow):
     def _create_teaching_point_area(self) -> QWidget:
         input_area = QGroupBox("Teaching Point")
         input_area.setObjectName("input_area")
+        input_area.setStyleSheet("""
+            QGroupBox#input_area QLabel,
+            QGroupBox#input_area QComboBox,
+            QGroupBox#input_area QLineEdit,
+            QGroupBox#input_area QPushButton { font-size: 14px; }
+            QLabel#move_command_label, QLabel#rpos_command_label {
+                color: #7dd3fc;
+                font-weight: 700;
+            }
+            QLabel#current_z_position_value {
+                color: #e0f2fe;
+                font-size: 22px;
+                font-weight: 700;
+            }
+        """)
         layout = QVBoxLayout(input_area)
-        layout.setContentsMargins(12, 18, 12, 12)
-        layout.setSpacing(8)
+        layout.setContentsMargins(14, 26, 14, 18)
+        layout.setSpacing(22)
 
         move_row = QHBoxLayout()
+        move_row.setSpacing(8)
         layout.addLayout(move_row)
 
         move_label = QLabel("MOVE")
@@ -189,7 +215,7 @@ class MainWindow(QMainWindow):
         position_input.setObjectName("move_position_input")
         position_input.setPlaceholderText("Position")
         position_input.setClearButtonEnabled(True)
-        position_input.setMaximumWidth(120)
+        position_input.setMinimumWidth(80)
         move_row.addWidget(position_input, 1)
 
         send_button = QPushButton("Send")
@@ -199,6 +225,7 @@ class MainWindow(QMainWindow):
         move_row.addWidget(send_button)
 
         rpos_row = QHBoxLayout()
+        rpos_row.setSpacing(8)
         layout.addLayout(rpos_row)
 
         rpos_label = QLabel("RPOS")
@@ -218,6 +245,15 @@ class MainWindow(QMainWindow):
         rpos_button.setEnabled(False)
         rpos_button.clicked.connect(self._send_rpos_command)
         rpos_row.addWidget(rpos_button)
+
+        for label in (move_label, rpos_label):
+            label.setMinimumWidth(48)
+        for control in (mode_combo, axis_combo, position_input, send_button, rpos_button):
+            control.setMinimumHeight(42)
+        for button in (send_button, rpos_button):
+            button.setMinimumWidth(72)
+        current_position_value.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        layout.addStretch(1)
 
         self.move_mode_combo = mode_combo
         self.move_axis_combo = axis_combo

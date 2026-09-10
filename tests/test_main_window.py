@@ -297,12 +297,11 @@ class MainWindowTests(unittest.TestCase):
 
         title_label = window.findChild(QLabel, "app_title")
         brand_mark = window.findChild(QLabel, "brand_mark")
-        visual_pattern = window.findChild(QLabel, "visual_pattern")
+        model_view = window.findChild(QWidget, "device_model_view")
 
         self.assertIsNotNone(title_label)
         self.assertEqual(title_label.text(), "Vial Decapper")
         self.assertGreaterEqual(title_label.font().pointSize(), 20)
         self.assertIsNotNone(brand_mark)
         self.assertEqual(brand_mark.text(), "◈")
-        self.assertIsNotNone(visual_pattern)
-        self.assertEqual(visual_pattern.text(), "◈")
+        self.assertIsNotNone(model_view)
