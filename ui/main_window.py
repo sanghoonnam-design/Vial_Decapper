@@ -19,6 +19,9 @@ from PySide6.QtWidgets import (
     QPushButton,
     QSplitter,
     QSlider,
+    QSpinBox,
+    QTabWidget,
+    QScrollArea,
     QVBoxLayout,
     QWidget,
 )
@@ -167,13 +170,24 @@ class MainWindow(QMainWindow):
         return workspace
 
     def _create_teaching_point_area(self) -> QWidget:
-        input_area = QGroupBox("Teaching Point")
+        input_area = QGroupBox("Teaching && Motion")
         input_area.setObjectName("input_area")
         input_area.setStyleSheet("""
             QGroupBox#input_area QLabel,
             QGroupBox#input_area QComboBox,
             QGroupBox#input_area QLineEdit,
             QGroupBox#input_area QPushButton { font-size: 14px; }
+            QTabWidget::pane { border: 1px solid #2b4266; border-radius: 6px; }
+            QTabBar::tab { background: #15263e; color: #a9bed8; padding: 8px 12px; }
+            QTabBar::tab:selected { background: #225176; color: #ffffff; }
+            QScrollArea { border: none; background: #111c31; }
+            QWidget#motion_page { background: #111c31; }
+            QSpinBox, QComboBox { background: #091323; color: #dbeafe;
+                border: 1px solid #2b4266; border-radius: 4px; padding: 5px; }
+            QPushButton:disabled { background: #172338; color: #687990; }
+            QPushButton#motion_stop { background: #ac3344; color: white; }
+            QPushButton#motion_stop:disabled { background: #522b37; color: #99727a; }
+            QLabel { color: #b9cce1; }
             QLabel#move_command_label, QLabel#rpos_command_label {
                 color: #7dd3fc;
                 font-weight: 700;
@@ -184,9 +198,59 @@ class MainWindow(QMainWindow):
                 font-weight: 700;
             }
         """)
-        layout = QVBoxLayout(input_area)
-        layout.setContentsMargins(14, 26, 14, 18)
-        layout.setSpacing(22)
+        outer = QVBoxLayout(input_area)
+        outer.setContentsMargins(10, 22, 10, 10)
+        self.motion_buttons = []
+        controls = QHBoxLayout()
+        for title, command in (("정지 · STOP", "STOP"), ("일시정지", "PAUSE"), ("재개", "RESUME")):
+            controls.addWidget(self._motion_button(title, command))
+        outer.addLayout(controls)
+        self.motion_tabs = QTabWidget()
+        self.motion_tabs.setObjectName("motion_tabs")
+        outer.addWidget(self.motion_tabs)
+
+        def page(title):
+            content = QWidget()
+            content.setObjectName("motion_page")
+            content.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+            rows = QVBoxLayout(content)
+            rows.setContentsMargins(10, 10, 10, 10)
+            rows.setSpacing(10)
+            scroll = QScrollArea()
+            scroll.setWidgetResizable(True)
+            scroll.setWidget(content)
+            self.motion_tabs.addTab(scroll, title)
+            return rows
+
+        def command_row(rows, title, commands):
+            row = QHBoxLayout()
+            row.addWidget(QLabel(title))
+            for label, command in commands:
+                row.addWidget(self._motion_button(label, command))
+            rows.addLayout(row)
+
+        automatic = page("Test")
+        command_row(automatic, "원점", (("홈 찾기 · HOME", "HOME"), ("원위치 · ORG", "ORG")))
+        command_row(automatic, "자동", (("캡 열기 · DECAP", "DECAP"), ("캡 닫기 · CAP", "CAP")))
+        speed_row = QHBoxLayout()
+        speed_row.addWidget(QLabel("속도"))
+        self.speed_input = QSpinBox()
+        self.speed_input.setObjectName("speed_input")
+        self.speed_input.setRange(1, 100)
+        self.speed_input.setValue(100)
+        self.speed_input.setSuffix(" %")
+        self.speed_input.setToolTip("설정할 속도 비율입니다. 적용을 눌러 전송합니다.")
+        speed_row.addWidget(self.speed_input)
+        speed_row.addWidget(self._motion_button("조회", "SPEED"))
+        speed_row.addWidget(self._action_button("적용", "speed_apply_button", self._send_speed))
+        automatic.addLayout(speed_row)
+        command_row(automatic, "상태", (("상태 조회 · GSTA", "GSTA"),))
+        note = QLabel("명령 응답과 BUSY·오류는 아래 통신 로그에서 확인합니다.")
+        note.setWordWrap(True)
+        automatic.addWidget(note)
+        automatic.addStretch()
+
+        layout = page("Teaching")
 
         move_row = QHBoxLayout()
         move_row.setSpacing(8)
@@ -198,11 +262,10 @@ class MainWindow(QMainWindow):
 
         mode_combo = QComboBox()
         mode_combo.setObjectName("move_mode_combo")
-        # Firmware MOVE accepts R (relative) or A (absolute).  Keep the
-        # operator-facing labels requested by the UI and store protocol data
-        # separately in the combo-box item data.
+        # Firmware A is absolute position, not velocity.
         mode_combo.addItem("REL", "R")
-        mode_combo.addItem("VEL", "A")
+        mode_combo.addItem("ABS", "A")
+        mode_combo.setToolTip("REL: 상대 이동 / ABS: 절대 위치 이동")
         move_row.addWidget(mode_combo)
 
         axis_combo = QComboBox()
@@ -213,7 +276,8 @@ class MainWindow(QMainWindow):
 
         position_input = QLineEdit()
         position_input.setObjectName("move_position_input")
-        position_input.setPlaceholderText("Position")
+        position_input.setMaxLength(11)
+        position_input.setPlaceholderText("Position (pulse)")
         position_input.setClearButtonEnabled(True)
         position_input.setMinimumWidth(80)
         move_row.addWidget(position_input, 1)
@@ -245,6 +309,10 @@ class MainWindow(QMainWindow):
         rpos_button.setEnabled(False)
         rpos_button.clicked.connect(self._send_rpos_command)
         rpos_row.addWidget(rpos_button)
+        command_row(layout, "EEPROM", (("티칭 저장 · SAVE", "SAVE"),))
+        teaching_note = QLabel("Read로 읽은 Z 위치를 SAVE로 ZCap_UpPos에 저장합니다.\nSAVE는 장비 파라미터 전체를 EEPROM에 저장합니다.")
+        teaching_note.setWordWrap(True)
+        layout.addWidget(teaching_note)
 
         for label in (move_label, rpos_label):
             label.setMinimumWidth(48)
@@ -262,7 +330,51 @@ class MainWindow(QMainWindow):
         self.current_z_position_label = current_position
         self.current_z_position_value = current_position_value
         self.rpos_read_button = rpos_button
+        self.motion_buttons.extend((send_button, rpos_button))
+
+        manual = page("Debug")
+        command_row(manual, "Y축", (("High · READY 0", "READY 0"), ("Low · READY 1", "READY 1")))
+        command_row(manual, "바디 그립", (("ON", "BGRIP 1"), ("OFF", "BGRIP 0")))
+        command_row(manual, "캡 그립", (("ON", "CGRIP 1"), ("OFF", "CGRIP 0")))
+        command_row(manual, "유닛 시험", (("UDECAP", "UDECAP"), ("UCAP", "UCAP")))
+        command_row(manual, "반복 시험", (("시작 · LR", "LR"),))
+        manual.addWidget(QLabel("반복 시험은 상단 STOP으로 종료합니다."))
+        manual.addStretch()
+
+        diagnostics = page("Status")
+        command_row(diagnostics, "조회", (("SL", "SL"), ("CD", "CD"), ("PL", "PL")))
+        diagnostics.addStretch()
         return input_area
+
+    def _action_button(self, title, name, handler):
+        button = QPushButton(title)
+        button.setObjectName(name)
+        button.setEnabled(False)
+        button.setMinimumHeight(34)
+        button.clicked.connect(handler)
+        self.motion_buttons.append(button)
+        return button
+
+    def _motion_button(self, title, command):
+        button = self._action_button(title, "motion_" + command.replace(" ", "_").lower(),
+                                     lambda checked=False: self._send_motion_command(command))
+        button.setToolTip(command)
+        return button
+
+    def _send_motion_command(self, command):
+        sender = self._active_command_client()
+        if sender is None:
+            self._log_error("Cannot send: connect TCP/IP or UART first.")
+            return
+        sender.send_command(command, True, True)
+
+    def _send_speed(self):
+        self._send_motion_command(f"SPEED {self.speed_input.value()}")
+
+    def _set_command_controls_enabled(self, enabled):
+        self.command_send_button.setEnabled(enabled)
+        for button in self.motion_buttons:
+            button.setEnabled(enabled)
 
     def _create_command_area(self) -> QWidget:
         command_area = QGroupBox("Command")
@@ -413,8 +525,12 @@ class MainWindow(QMainWindow):
 
     def _send_teaching_point(self) -> None:
         position = self.move_position_input.text().strip()
-        if not position or not position.lstrip("+-").isdigit():
+        if not re.fullmatch(r"[+-]?[0-9]+", position):
             self._append_log("ERROR: Position must be an integer.")
+            return
+
+        if not -2147483648 <= int(position) <= 2147483647:
+            self._log_error("Position must fit a signed 32-bit pulse value.")
             return
 
         mode = self.move_mode_combo.currentData()
@@ -452,35 +568,27 @@ class MainWindow(QMainWindow):
 
     def _on_connected(self) -> None:
         self.connect_button.setText("Disconnect")
-        self.command_send_button.setEnabled(True)
-        self.move_send_button.setEnabled(True)
-        self.rpos_read_button.setEnabled(True)
+        self._set_command_controls_enabled(True)
         if self.serial_client.is_connected():
             self.uart_connect_button.setText("UART Disconnect")
         self._append_log("Connected.")
 
     def _on_disconnected(self) -> None:
         self.connect_button.setText("Connect")
-        self.command_send_button.setEnabled(False)
-        self.move_send_button.setEnabled(False)
-        self.rpos_read_button.setEnabled(False)
+        self._set_command_controls_enabled(self.serial_client.is_connected())
         if not self.serial_client.is_connected():
             self.uart_connect_button.setText("UART Connect")
         self._append_log("Disconnected.")
 
     def _on_uart_connected(self) -> None:
         self.uart_connect_button.setText("UART Disconnect")
-        self.command_send_button.setEnabled(True)
-        self.move_send_button.setEnabled(True)
-        self.rpos_read_button.setEnabled(True)
+        self._set_command_controls_enabled(True)
         self._append_log("UART connected.")
 
     def _on_uart_disconnected(self) -> None:
         self.uart_connect_button.setText("UART Connect")
         if not self.command_client.is_connected():
-            self.command_send_button.setEnabled(False)
-            self.move_send_button.setEnabled(False)
-            self.rpos_read_button.setEnabled(False)
+            self._set_command_controls_enabled(False)
         self._append_log("UART disconnected.")
 
     def _log_sent(self, payload: bytes) -> None:

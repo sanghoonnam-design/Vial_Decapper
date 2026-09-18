@@ -25,6 +25,82 @@ from ui.main_window import MainWindow
 
 
 class MainWindowTests(unittest.TestCase):
+    def test_motion_buttons_send_firmware_commands_with_crlf(self):
+        window = MainWindow()
+        self.addCleanup(window.close)
+        payloads = []
+        window.command_client.is_connected = lambda: True
+        window.command_client.socket.write = lambda data: payloads.append(bytes(data)) or len(data)
+        window._on_connected()
+        commands = ["HOME", "STOP", "PAUSE", "RESUME", "DECAP", "CAP", "ORG",
+                    "READY 0", "READY 1", "BGRIP 0", "BGRIP 1", "CGRIP 0", "CGRIP 1",
+                    "UDECAP", "UCAP", "LR", "GSTA", "SL", "CD", "PL",
+                    "SPEED", "SAVE"]
+        for command in commands:
+            with self.subTest(command=command):
+                button = window.findChild(QPushButton, "motion_" + command.replace(" ", "_").lower())
+                self.assertIsNotNone(button)
+                button.click()
+                self.assertEqual(payloads[-1], command.encode("ascii") + b"\r\n")
+
+    def test_speed_control_builds_command(self):
+        window = MainWindow()
+        self.addCleanup(window.close)
+        payloads = []
+        window.command_client.is_connected = lambda: True
+        window.command_client.socket.write = lambda data: payloads.append(bytes(data)) or len(data)
+        window._on_connected()
+        window.speed_input.setValue(35)
+        window.findChild(QPushButton, "speed_apply_button").click()
+        self.assertEqual(payloads[-1], b"SPEED 35\r\n")
+
+    def test_motion_tabs_use_requested_names_and_status_only_has_queries(self):
+        window = MainWindow()
+        self.addCleanup(window.close)
+        self.assertEqual(
+            [window.motion_tabs.tabText(i) for i in range(window.motion_tabs.count())],
+            ["Test", "Teaching", "Debug", "Status"],
+        )
+        status_page = window.motion_tabs.widget(3).widget()
+        status_buttons = status_page.findChildren(QPushButton)
+        self.assertEqual([button.text() for button in status_buttons], ["SL", "CD", "PL"])
+        self.assertIsNone(window.findChild(QPushButton, "pl_apply_button"))
+        self.assertIsNone(window.findChild(QPushButton, "motion_st"))
+        self.assertIsNone(window.findChild(QPushButton, "motion_spd"))
+        self.assertIsNone(window.findChild(QPushButton, "motion_capdecaplr"))
+
+    def test_motion_controls_follow_remaining_connection(self):
+        window = MainWindow()
+        self.addCleanup(window.close)
+        stop = window.findChild(QPushButton, "motion_stop")
+        self.assertIsNotNone(stop)
+        self.assertFalse(stop.isEnabled())
+        window.serial_client.is_connected = lambda: True
+        window._on_uart_connected()
+        window._on_disconnected()
+        self.assertTrue(stop.isEnabled())
+        sent = []
+        window.serial_client.send_command = lambda *args: sent.append(args)
+        stop.click()
+        self.assertEqual(sent, [("STOP", True, True)])
+        window.serial_client.is_connected = lambda: False
+        window._on_uart_disconnected()
+        self.assertFalse(stop.isEnabled())
+
+    def test_move_rejects_malformed_and_out_of_range_pulses(self):
+        window = MainWindow()
+        self.addCleanup(window.close)
+        payloads = []
+        window.command_client.is_connected = lambda: True
+        window.command_client.socket.write = lambda data: payloads.append(bytes(data)) or len(data)
+        for invalid in ("--3", "+-3", "2147483648", "-2147483649", "12.5"):
+            window.move_position_input.setText(invalid)
+            window._send_teaching_point()
+        self.assertEqual(payloads, [])
+        window.move_position_input.setText("-123")
+        window._send_teaching_point()
+        self.assertEqual(payloads, [b"MOVE R Z -123\r\n"])
+
     @classmethod
     def setUpClass(cls) -> None:
         cls.application = QApplication.instance() or QApplication([])
@@ -178,7 +254,7 @@ class MainWindowTests(unittest.TestCase):
         self.assertIsNotNone(move_label)
         self.assertEqual(move_label.text(), "MOVE")
         self.assertIsNotNone(mode_combo)
-        self.assertEqual([mode_combo.itemText(i) for i in range(mode_combo.count())], ["REL", "VEL"])
+        self.assertEqual([mode_combo.itemText(i) for i in range(mode_combo.count())], ["REL", "ABS"])
         self.assertIsNotNone(axis_combo)
         self.assertEqual([axis_combo.itemText(i) for i in range(axis_combo.count())], ["Z", "R"])
         self.assertIsNotNone(position_input)
@@ -189,7 +265,7 @@ class MainWindowTests(unittest.TestCase):
     def test_teaching_point_send_builds_move_command(self) -> None:
         window = MainWindow()
         window._on_connected()
-        window.findChild(QComboBox, "move_mode_combo").setCurrentText("VEL")
+        window.findChild(QComboBox, "move_mode_combo").setCurrentText("ABS")
         window.findChild(QComboBox, "move_axis_combo").setCurrentText("R")
         window.findChild(QLineEdit, "move_position_input").setText("250")
 
@@ -288,7 +364,7 @@ class MainWindowTests(unittest.TestCase):
         self.assertIsNotNone(input_area)
         self.assertIsNotNone(command_area)
         self.assertEqual(visual_area.title(), "Vial Decapper Image")
-        self.assertEqual(input_area.title(), "Teaching Point")
+        self.assertEqual(input_area.title(), "Teaching && Motion")
         self.assertEqual(command_area.title(), "Command")
         self.assertLessEqual(abs(visual_area.width() - right_splitter.width()), 30)
 
