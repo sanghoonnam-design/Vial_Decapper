@@ -16,12 +16,12 @@
  * |  NO. |    Company    |         Model          | FW Ver. Type | Current Version   |  Description          |
  * |      |               |                        |              | (inaccurate data) |                       |
  * ===========================================================================================================
- * |    1 | JNJ#3         | Robo-C                 | A            | 4.0.0A1           | 최초 소형제어기 적용     |
+ * |    1 |               | Vial Decapper          | A            | 1.0.0A05          | 최초 버전                |
  * |----------------------------------------------------------------------------------------------------------|
  * ===========================================================================================================
  * ===========================================================================================================
  *
- * ver 4.00.00  : 2026.07.20, Robo-C 소현 제어기 최초 개발, 4.0.0A1
+ * ver 1.00.00  : Vial Decapper 최초 버전, 1.0.0A05
  * ............ :
  * ver 4.00.00  :
  *
@@ -33,63 +33,53 @@
  * 아래 코드에 직접 System Type과 Model Type을 정의하세요.
  * ********************************************************************************/
 #ifndef SYSTEM_TYPE
-#define SYSTEM_TYPE /*     */ SYS_Robo_C   // SYS_Robo_CnREF
+#define SYSTEM_TYPE /*     */ SYS_Vial_Decapper
 #endif
 
 #ifndef MODEL_TYPE
-#define MODEL_TYPE /*      */ MODEL_01
+#define MODEL_TYPE /*      */ MODEL_05
 #endif
 
 #define TCP_IP_ADDRESS (160) // 192.168.0.xx
 
 /** cf) 모델 설명 ===================================================================
- ** [SYS_Robo_C] : Robo-C 
- *     1) MODEL_01 : [xx.xx.xxA1], 2026.07.20, 최초 개발품(소형제어기 적용)
- *     2) MODEL_02 : [xx.xx.xxA2],
- *     3) MODEL_03 : [xx.xx.xxA3],
- *     4) MODEL_04 : [xx.xx.xxA4],
- *     5) MODEL_05 : [xx.xx.xxA5],
- *  ============================================================================= 
- * [SYS_Robo_CnREF] : 냉장고 Robo-C 
- *     1) MODEL_01 : [xx.xx.xxB1], 아직 개발 안됨. 개발 예정
- *     2) MODEL_02 : [xx.xx.xxB2],
- *     3) MODEL_03 : [xx.xx.xxB3],
- *     4) MODEL_04 : [xx.xx.xxB4],
- *     5) MODEL_05 : [xx.xx.xxB5],
+ ** [SYS_Vial_Decapper] : Vial Decapper
+ *     1) MODEL_05 : [xx.xx.xxA05], 기본 모델
+ *     2) MODEL_15 : [xx.xx.xxA15]
+ *     3) MODEL_25 : [xx.xx.xxA25]
+ *     4) MODEL_50 : [xx.xx.xxA50]
  * ********************************************************************************/
 
 //==================================================================================
-#define SYS_Robo_C /*      */ (1) // centrifuge 기본 버전
-#define SYS_Robo_CnREF /*  */ (2) // centrifuge + 냉장고 버전
+#define SYS_Vial_Decapper /**/ (1)
 
-#define MODEL_01 /*        */ (1) // 각 시스템별 모델 정의
-#define MODEL_02 /*        */ (2)
-#define MODEL_03 /*        */ (3)
-#define MODEL_04 /*        */ (4)
 #define MODEL_05 /*        */ (5)
+#define MODEL_15 /*        */ (15)
+#define MODEL_25 /*        */ (25)
+#define MODEL_50 /*        */ (50)
 //==================================================================================
 
 /* ---- Validation : 구성값 유효성 검사 (컴파일 타임) ---- */
 #if !defined(SYSTEM_TYPE)
 #error "[SYSTEM_TYPE] is not defined (set it above or in build settings)"
-#elif (SYSTEM_TYPE != SYS_Robo_C) && (SYSTEM_TYPE != SYS_Robo_CnREF)
+#elif (SYSTEM_TYPE != SYS_Vial_Decapper)
 #error "[SYSTEM_TYPE] has an unknown value (see 'System Type' list above)"
 #endif
 
 #if !defined(MODEL_TYPE)
 #error "[MODEL_TYPE] is not defined (set it above or in build settings)"
+#elif (MODEL_TYPE != MODEL_05) && (MODEL_TYPE != MODEL_15) && \
+      (MODEL_TYPE != MODEL_25) && (MODEL_TYPE != MODEL_50)
+#error "[MODEL_TYPE] has an unknown value (see 'Model Type' list above)"
 #endif
 
 //==================================================================================
-#define IS_Robo_C (SYSTEM_TYPE == SYS_Robo_C)
-#define IS_Robo_C_n_REf (SYSTEM_TYPE == SYS_Robo_CnREF)
+#define IS_Vial_Decapper (SYSTEM_TYPE == SYS_Vial_Decapper)
 //==================================================================================
 
 //---- SYSTEM_TYPE 문자열 자동 선택 (SYSTEM_TYPE만 바꾸면 따라옴) ----
-#if IS_Robo_C
-#define SYSTEM_TYPE_STR /* */ "Robo-C"
-#elif IS_Robo_C_n_REf
-#define SYSTEM_TYPE_STR /* */ "Robo-CnREF"
+#if IS_Vial_Decapper
+#define SYSTEM_TYPE_STR /* */ "Vial_Decapper"
 #else
 #define SYSTEM_TYPE_STR /* */ "Unknown"
 #endif
@@ -101,10 +91,7 @@
  * @note  필요없는 모듈은 주석처리 하여 사용하세요.
  *        -주석처리시 상위단 에러코드(주석과 관련된) 수정필요.
  */
-#if (IS_Robo_C) // [기본 모델]
-// TODO
-
-#elif (IS_Robo_C_n_REF) // [냉장고 추가 모델]
+#if (IS_Vial_Decapper)
 // TODO
 
 #else // [알 수 없는 모델]

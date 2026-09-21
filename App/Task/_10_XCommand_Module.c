@@ -323,26 +323,39 @@ void CMD_Handle_Print_SL(const tsXParsedData *parsedData, U08 useTCP)
         xcprintf(ANSI_TX_ORG);
         xprintf("\t  %-42s : %10.3f sec", "xSL.Time", (double)xSL.Time);
         xprintf("\t  %-42s : %10d", "xSL.isBusy", xSL.isBusy);
+        xprintf("\t  %-42s : %10d", "xSL.isError", xSL.isError);
+        xprintf("\t  %-42s : %10d", "xSL.isEnable", xSL.isEnable);
+        xprintf("\t  %-42s : %10d", "xSL.isHomed", xSL.isHomed);
+        xprintf("\t  %-42s : %10d", "xSL.errorCode", xSL.errorCode);
         xprintf("\t  %-42s : %10lu Bytes", "sizeof(tsXStateList)", (unsigned long)sizeof(tsXStateList));
 
         xcprintf(ANSI_TX_LightGreen);
         xprintf("\t----------------------------------------------------------------------");
-        xprintf("\t[ LED State ]");
-        xcprintf(ANSI_TX_ORG);
-        //xprintf("\t  %-42s : %10d", "xSL.LED.Status", xSL.LED.Status);
 
-        xcprintf(ANSI_TX_LightGreen);
+        xprintf("\t[ xSL.Decapper ]");
+        xprintf("\t  %-42s : %10d", "xSL.Decapper.Cap_is", xSL.Decapper.Cap_is);
+        xprintf("\t  %-42s : %10d", "xSL.Decapper.Body_is", xSL.Decapper.Body_is);
+        xprintf("\t  %-42s : %10d", "xSL.Decapper.Z_HL_isError", xSL.Decapper.Z_HL_isError);
+        xprintf("\t  %-42s : %10d", "xSL.Decapper.Y_HL_isError", xSL.Decapper.Y_HL_isError);
+        xprintf("\t  %-42s : %10d", "xSL.Decapper.CT_Cap_Grip_isError", xSL.Decapper.CT_Cap_Grip_isError);
+        xprintf("\t  %-42s : %10d", "xSL.Decapper.CT_Body_Grip_isError", xSL.Decapper.CT_Body_Grip_isError);
+
         xprintf("\t----------------------------------------------------------------------");
-        xprintf("\t[ Robot Door State ]");
-        xcprintf(ANSI_TX_ORG);
-        //xprintf("\t  %-42s : %10d", "xSL.Door.isInitialized", xSL.Door.isInitialized);
+        xprintf("\t[ xSL.CDecapping_Sensor ]");
+        xprintf("\t  %-42s : %10d", "xSL.CDecapping_Sensor.Z_H_Limit_Sensor", xSL.CDecapping_Sensor.Z_H_Limit_Sensor);
+        xprintf("\t  %-42s : %10d", "xSL.CDecapping_Sensor.Z_L_Limit_Sensor", xSL.CDecapping_Sensor.Z_L_Limit_Sensor);
+        xprintf("\t  %-42s : %10d", "xSL.CDecapping_Sensor.Y_H_Limit_Sensor", xSL.CDecapping_Sensor.Y_H_Limit_Sensor);
+        xprintf("\t  %-42s : %10d", "xSL.CDecapping_Sensor.Y_L_Limit_Sensor", xSL.CDecapping_Sensor.Y_L_Limit_Sensor);
+        xprintf("\t  %-42s : %10d", "xSL.CDecapping_Sensor.CT_Body_Grip_Detect_Open", xSL.CDecapping_Sensor.CT_Body_Grip_Detect_Open);
+        xprintf("\t  %-42s : %10d", "xSL.CDecapping_Sensor.CT_Body_Grip_Detect_Close", xSL.CDecapping_Sensor.CT_Body_Grip_Detect_Close);
+        xprintf("\t  %-42s : %10d", "xSL.CDecapping_Sensor.CT_Cap_Grip_Detect_Open", xSL.CDecapping_Sensor.CT_Cap_Grip_Detect_Open);
+        xprintf("\t  %-42s : %10d", "xSL.CDecapping_Sensor.CT_Cap_Grip_Detect_Close", xSL.CDecapping_Sensor.CT_Cap_Grip_Detect_Close);
+        xprintf("\t  %-42s : %10d", "xSL.CDecapping_Sensor.CT_Detect_Sensor", xSL.CDecapping_Sensor.CT_Detect_Sensor);
 
-
-        xcprintf(ANSI_TX_LightGreen);
         xprintf("\t----------------------------------------------------------------------");
-        xprintf("\t[ Servo A6 State ]");
-        xcprintf(ANSI_TX_ORG);
-        //xprintf("\t  %-42s : %10d", "xSL.ServoA6.isInitialized", xSL.ServoA6.isInitialized);
+        xprintf("\t[ Motor Run ]");
+        xprintf("\t  %-42s : %10d", "xSL.xZ_Motor_Run.Motor_Run", xSL.xZ_Motor_Run.Motor_Run);
+        xprintf("\t  %-42s : %10d", "xSL.xR_Motor_Run.Motor_Run", xSL.xR_Motor_Run.Motor_Run);
 
         xcprintf(ANSI_TX_LightYellow);
         xprintf("\t======================================================================");
@@ -388,28 +401,37 @@ void CMD_Handle_Print_CD(const tsXParsedData *parsedData, U08 useTCP)
 
         xcprintf(ANSI_TX_LightMagenta);
         xprintf("\t----------------------------------------------------------------------");
-        xprintf("\t[ xCD.LED ]");
+        xprintf("\t[ xCD.Decapper ]");
         xcprintf(ANSI_TX_ORG);
-        //xprintf("\t  %-42s : %10d", "xCD.LED.Out", xCD.LED.Out);
+        xprintf("\t  %-42s : %10ld pulse", "xCD.Decapper.Motor_CurPos",
+                (long)xCD.Decapper.Motor_CurPos);
+        xprintf("\t  %-42s : %10ld pulse", "xCD.Decapper.Motor_TargetPos[Z]",
+                (long)xCD.Decapper.Motor_TargetPos[aZ]);
+        xprintf("\t  %-42s : %10ld pulse", "xCD.Decapper.Motor_TargetPos[R]",
+                (long)xCD.Decapper.Motor_TargetPos[aR]);
+        xprintf("\t  %-42s : %10d (%s)", "xCD.Decapper.phaseDecapCap",
+                (int)xCD.Decapper.phaseDecapCap,
+                (xCD.Decapper.phaseDecapCap == LONGRUN_CAP) ? "CAP" : "DECAP");
+        xprintf("\t  %-42s : %10lu", "xCD.Decapper.LongRunCount",
+                (unsigned long)xCD.Decapper.LongRunCount);
+        xprintf("\t  %-42s : %10u %%", "xCD.Decapper.SpeedPercent",
+                (unsigned int)xCD.Decapper.SpeedPercent);
+        xprintf("\t  %-42s : %10d", "xCD.Decapper.SystemInfo.isSWLimit",
+                xCD.Decapper.SystemInfo.isSWLimit);
+        xprintf("\t  %-42s : %10ld", "xCD.Decapper.chMotor", (long)xCD.Decapper.chMotor);
+
+        xprintf("\t  [ Debug Data ]");
+        for (int i = 0; i < DEBUG_CD_SIZE; i++)
+        {
+            xprintf("\t  %-36s[%2d] : %10d", "xCD.Decapper.debug", i, xCD.Decapper.debug[i]);
+        }
 
         xcprintf(ANSI_TX_LightGreen);
         xprintf("\t----------------------------------------------------------------------");
-        xprintf("\t[ xCD.Door : Robot Door I/O ]");
+        xprintf("\t[ xCD.CT : Cap / Body Grip Command ]");
         xcprintf(ANSI_TX_ORG);
-        //xprintf("\t  %-42s : %10d", "xCD.Door.CloseSensor", xCD.Door.CloseSensor);
-
-        xcprintf(ANSI_TX_LightCyan);
-        xprintf("\t----------------------------------------------------------------------");
-        xprintf("\t[ xCD.ServoA6 : Speed / Position / Centrifuge ]");
-        xcprintf(ANSI_TX_ORG);
-        //xprintf("\t  %-42s : %10d pps", "xCD.ServoA6.CurrentSpeed.pps", (int)xCD.ServoA6.CurrentSpeed.pps);
-
-        xcprintf(ANSI_TX_LightCyan);
-        xprintf("\t----------------------------------------------------------------------");
-        xprintf("\t[ xCD.SL Snapshot ]");
-        xcprintf(ANSI_TX_ORG);
-        xprintf("\t  %-42s : %10d", "xCD.SL.isBusy", xCD.SL.isBusy);
-        //xprintf("\t  %-42s : %10d", "xCD.SL.Door.Status (0:err,1:mv,2:cl,3:op)", xCD.SL.Door.Status);
+        xprintf("\t  %-42s : %10u", "xCD.CT.Body", (unsigned int)xCD.CT.Body);
+        xprintf("\t  %-42s : %10u", "xCD.CT.Cap", (unsigned int)xCD.CT.Cap);
 
         xcprintf(ANSI_TX_LightYellow);
         xprintf("\t======================================================================");
@@ -631,6 +653,139 @@ static int RPL_SetParameter(int index, const tsXParsedData *parsedData)
 
         return YES;
 
+    /* --- Vial Decapper --- */
+    case RPL_SET_DECAP_RUN_CUR_Z:
+        if (GetParamFloat(parsedData, 1, &value_f) == NO || value_f < 0.0f)
+            return NO;
+        xPL.Decapper.RunCur[aZ] = value_f;
+        return YES;
+
+    case RPL_SET_DECAP_RUN_CUR_R:
+        if (GetParamFloat(parsedData, 1, &value_f) == NO || value_f < 0.0f)
+            return NO;
+        xPL.Decapper.RunCur[aR] = value_f;
+        return YES;
+
+    case RPL_SET_DECAP_SEL_MAX_CUR_Z:
+        if (GetParamInt(parsedData, 1, &value_i) == NO || value_i < 0)
+            return NO;
+        xPL.Decapper.SelMaxCur[aZ] = value_i;
+        return YES;
+
+    case RPL_SET_DECAP_SEL_MAX_CUR_R:
+        if (GetParamInt(parsedData, 1, &value_i) == NO || value_i < 0)
+            return NO;
+        xPL.Decapper.SelMaxCur[aR] = value_i;
+        return YES;
+
+    case RPL_SET_DECAP_STOP_CUR_RATE_Z:
+        if (GetParamInt(parsedData, 1, &value_i) == NO || value_i < 0 || value_i > 100)
+            return NO;
+        xPL.Decapper.StopCurRate[aZ] = value_i;
+        return YES;
+
+    case RPL_SET_DECAP_STOP_CUR_RATE_R:
+        if (GetParamInt(parsedData, 1, &value_i) == NO || value_i < 0 || value_i > 100)
+            return NO;
+        xPL.Decapper.StopCurRate[aR] = value_i;
+        return YES;
+
+    case RPL_SET_DECAP_STEP_RESOLUTION:
+        if (GetParamInt(parsedData, 1, &value_i) == NO || value_i <= 0)
+            return NO;
+        xPL.Decapper.StepResolution = value_i;
+        return YES;
+
+    case RPL_SET_DECAP_LIMIT_POS_Z:
+        if (GetParamInt(parsedData, 1, &value_i) == NO || value_i < 0)
+            return NO;
+        xPL.Decapper.Limit_PosZ = (S32)value_i;
+        return YES;
+
+    case RPL_SET_DECAP_LIMIT_POS_R:
+        if (GetParamInt(parsedData, 1, &value_i) == NO || value_i < 0)
+            return NO;
+        xPL.Decapper.Limit_PosR = (S32)value_i;
+        return YES;
+
+    case RPL_SET_DECAP_SW_NEG_LIMIT_Z:
+        if (GetParamInt(parsedData, 1, &value_i) == NO || value_i < 0)
+            return NO;
+        xPL.Decapper.SwNegLimit[aZ] = (S32)value_i;
+        return YES;
+
+    case RPL_SET_DECAP_SW_POS_LIMIT_Z:
+        if (GetParamInt(parsedData, 1, &value_i) == NO || value_i < 0)
+            return NO;
+        xPL.Decapper.SwPosLimit[aZ] = (S32)value_i;
+        return YES;
+
+    case RPL_SET_DECAP_SW_NEG_LIMIT_R:
+        if (GetParamInt(parsedData, 1, &value_i) == NO || value_i < 0)
+            return NO;
+        xPL.Decapper.SwNegLimit[aR] = (S32)value_i;
+        return YES;
+
+    case RPL_SET_DECAP_SW_POS_LIMIT_R:
+        if (GetParamInt(parsedData, 1, &value_i) == NO || value_i < 0)
+            return NO;
+        xPL.Decapper.SwPosLimit[aR] = (S32)value_i;
+        return YES;
+
+    case RPL_SET_DECAP_SOFT_LIMIT_ENABLE:
+        if (GetParamInt(parsedData, 1, &value_i) == NO || (value_i != 0 && value_i != 1))
+            return NO;
+        xPL.Decapper.SoftLimitEnable = (U8)value_i;
+        return YES;
+
+    case RPL_SET_DECAP_Z_ACC:
+        if (GetParamInt(parsedData, 1, &value_i) == NO || value_i <= 0)
+            return NO;
+        xPL.Decapper.ZDecapAcc = (U32)value_i;
+        return YES;
+
+    case RPL_SET_DECAP_Z_VEL:
+        if (GetParamInt(parsedData, 1, &value_i) == NO)
+            return NO;
+        xPL.Decapper.ZDecapVel = (S32)value_i;
+        return YES;
+
+    case RPL_SET_DECAP_Z_CAP_UP_POS:
+        if (GetParamInt(parsedData, 1, &value_i) == NO)
+            return NO;
+        xPL.Decapper.ZCap_UpPos = (S32)value_i;
+        return YES;
+
+    case RPL_SET_DECAP_Z_CAP_SIDE_POS:
+        if (GetParamInt(parsedData, 1, &value_i) == NO)
+            return NO;
+        xPL.Decapper.ZCap_SidePos = (S32)value_i;
+        return YES;
+
+    case RPL_SET_DECAP_Z_ORIGIN_POS:
+        if (GetParamInt(parsedData, 1, &value_i) == NO)
+            return NO;
+        xPL.Decapper.ZCap_Origin_Position = (S32)value_i;
+        return YES;
+
+    case RPL_SET_DECAP_R_ACC:
+        if (GetParamInt(parsedData, 1, &value_i) == NO || value_i <= 0)
+            return NO;
+        xPL.Decapper.RDecapAcc = (U32)value_i;
+        return YES;
+
+    case RPL_SET_DECAP_R_VEL:
+        if (GetParamInt(parsedData, 1, &value_i) == NO)
+            return NO;
+        xPL.Decapper.RDecapVel = (S32)value_i;
+        return YES;
+
+    case RPL_SET_DECAP_R_POS:
+        if (GetParamInt(parsedData, 1, &value_i) == NO)
+            return NO;
+        xPL.Decapper.RDecapPos = (S32)value_i;
+        return YES;
+
     default:
         return NO;
     }
@@ -662,52 +817,46 @@ static void RPL_GetParameter(void)
 
     xcprintf(ANSI_TX_LightGreen);
     xprintf("\t----------------------------------------------------------------------");
-    xprintf("\t[ LED Parameter ]");
-    xcprintf(ANSI_TX_ORG);
-//    xprintf("\t  %-42s : %10d", "xPL.LED.CMD_StartControl", xPL.LED.CMD_StartControl);
+    xprintf("\t[ Decapper Parameter ]");
 
-    xcprintf(ANSI_TX_LightGreen);
-    xprintf("\t----------------------------------------------------------------------");
-    xprintf("\t[ Robot Door Parameter ]");
-    xcprintf(ANSI_TX_ORG);
-//    xprintf("\t  %-42s : %10d", "xPL.Door.CMD_StartControl", xPL.Door.CMD_StartControl);
-    xcprintf(ANSI_TX_LightGreen);
-//    xprintf("\t  %-42s : %10lu ms", "xPL.Door.CloseSensorOverTime_ms", (unsigned long)xPL.Door.CloseSensorOverTime_ms);
-    xcprintf(ANSI_TX_ORG);
-//	xprintf("\t  %-42s : %10lu pulse", "xPL.Door.RelativeDistance_Count", (unsigned long)xPL.Door.RelativeDistance_Count);
+    xprintf("\t  [ Motor Current ]");
+    xprintf("\t  %-42s : %10.3f A", "xPL.Decapper.RunCur[Z]", (double)xPL.Decapper.RunCur[aZ]);
+    xprintf("\t  %-42s : %10.3f A", "xPL.Decapper.RunCur[R]", (double)xPL.Decapper.RunCur[aR]);
+    xprintf("\t  %-42s : %10d", "xPL.Decapper.SelMaxCur[Z]", xPL.Decapper.SelMaxCur[aZ]);
+    xprintf("\t  %-42s : %10d", "xPL.Decapper.SelMaxCur[R]", xPL.Decapper.SelMaxCur[aR]);
+    xprintf("\t  %-42s : %10d %%", "xPL.Decapper.StopCurRate[Z]", xPL.Decapper.StopCurRate[aZ]);
+    xprintf("\t  %-42s : %10d %%", "xPL.Decapper.StopCurRate[R]", xPL.Decapper.StopCurRate[aR]);
 
-    xcprintf(ANSI_TX_LightMagenta);
-    xprintf("\t----------------------------------------------------------------------");
-    xprintf("\t[ Servo A6 Parameter ]");
-    xcprintf(ANSI_TX_ORG);
-//    xprintf("\t  %-42s : %10d", "xPL.ServoA6.CMD_StartControl", xPL.ServoA6.CMD_StartControl);
+    xprintf("\t  [ Motor Configuration ]");
+    xprintf("\t  %-42s : %10d", "xPL.Decapper.StepResolution", xPL.Decapper.StepResolution);
+    xprintf("\t  %-42s : %10s", "xPL.Decapper.SoftLimitEnable",
+            xPL.Decapper.SoftLimitEnable ? "ON" : "OFF");
 
-    xcprintf(ANSI_TX_LightGreen);
-//    xprintf("\t  %-42s : %10.3f rpm", "xPL.ServoA6.Home.Speed_Forward_rpm", (double)xPL.ServoA6.Home.Speed_Forward_rpm);
+    xprintf("\t  [ Motion Limit ]");
+    xprintf("\t  %-42s : %10ld pulse", "xPL.Decapper.Limit_PosZ", (long)xPL.Decapper.Limit_PosZ);
+    xprintf("\t  %-42s : %10ld pulse", "xPL.Decapper.Limit_PosR", (long)xPL.Decapper.Limit_PosR);
+    xprintf("\t  %-42s : %10ld pulse", "xPL.Decapper.SwNegLimit[Z]", (long)xPL.Decapper.SwNegLimit[aZ]);
+    xprintf("\t  %-42s : %10ld pulse", "xPL.Decapper.SwPosLimit[Z]", (long)xPL.Decapper.SwPosLimit[aZ]);
+    xprintf("\t  %-42s : %10ld pulse", "xPL.Decapper.SwNegLimit[R]", (long)xPL.Decapper.SwNegLimit[aR]);
+    xprintf("\t  %-42s : %10ld pulse", "xPL.Decapper.SwPosLimit[R]", (long)xPL.Decapper.SwPosLimit[aR]);
 
-    xcprintf(ANSI_TX_ORG);
+    xprintf("\t  [ Z Capping / Decapping ]");
+    xprintf("\t  %-42s : %10lu pulse/s^2", "xPL.Decapper.ZDecapAcc", (unsigned long)xPL.Decapper.ZDecapAcc);
+    xprintf("\t  %-42s : %10ld pulse/s", "xPL.Decapper.ZDecapVel", (long)xPL.Decapper.ZDecapVel);
+    xprintf("\t  %-42s : %10ld pulse", "xPL.Decapper.ZCap_UpPos", (long)xPL.Decapper.ZCap_UpPos);
+    xprintf("\t  %-42s : %10ld pulse", "xPL.Decapper.ZCap_SidePos", (long)xPL.Decapper.ZCap_SidePos);
+    xprintf("\t  %-42s : %10ld pulse", "xPL.Decapper.ZCap_Origin_Position",
+            (long)xPL.Decapper.ZCap_Origin_Position);
 
-//    xprintf("\t  %-42s : %10.3f rpm", "xPL.ServoA6.Slot.Speed_rpm", (double)xPL.ServoA6.Slot.Speed_rpm);
-
-    xcprintf(ANSI_TX_LightGreen);
-    for (int slot = 0; slot < SLOT_COUNT; slot++)
-    {
-//        xprintf("\t  %-39s[%d] : %10lu pulse",
-//                "xPL.ServoA6.Slot.PositionOffset_pulse", slot,
-//                (unsigned long)xPL.ServoA6.Slot.PositionOffset_pulse[slot]);
-    }
-    xcprintf(ANSI_TX_ORG);
-
-//    xprintf("\t  %-42s : %10.3f rpm", "xPL.ServoA6.Jog.Speed_rpm", (double)xPL.ServoA6.Jog.Speed_rpm);
-
-
-    xcprintf(ANSI_TX_LightYellow);
+    xprintf("\t  [ R Capping / Decapping ]");
+    xprintf("\t  %-42s : %10lu pulse/s^2", "xPL.Decapper.RDecapAcc", (unsigned long)xPL.Decapper.RDecapAcc);
+    xprintf("\t  %-42s : %10ld pulse/s", "xPL.Decapper.RDecapVel", (long)xPL.Decapper.RDecapVel);
+    xprintf("\t  %-42s : %10ld pulse", "xPL.Decapper.RDecapPos", (long)xPL.Decapper.RDecapPos);
     xprintf("\t======================================================================");
     xcprintf(ANSI_TX_ORG);
 }
 
-static void RPL_PrintHelp(void)
-{
+static void RPL_PrintHelp(void){
     xcprintf(ANSI_TX_LightYellow);
     xprintf("\t======================================================================");
     xprintf("\t                            [ PL Help ]                               ");
@@ -724,6 +873,7 @@ static void RPL_PrintHelp(void)
     xcprintf(ANSI_TX_ORG);
 
     xprintf("\t  [Idx] %-50s : %8s : %s", "Parameter", "Current", "Type");
+    xprintf("\t----------------------------------------------------------------------");
 
     /* --- Diagnose (PL Header) --- */
     xprintf("\t  [%2d] %-51s : %8.3f : F32, degC",
@@ -747,46 +897,60 @@ static void RPL_PrintHelp(void)
             xPL.Header.DG_Client2Host_LogMode);
 
     xprintf("\t----------------------------------------------------------------------");
-
-    /* --- Robot Door --- */
-//    xprintf("\t  [%2d] %-51s : %8d : int",
-//            RPL_SET_DOOR_DIRECTION,
-//            "xPL.Door.Direction",
-//            xPL.Door.Direction);
-
-
-    xprintf("\t----------------------------------------------------------------------");
-
-    /* --- Servo A6 --- */
-//    xprintf("\t  [%2d] %-51s : %8d : int",
-//            RPL_SET_SERVO_DIRECTION,
-//            "xPL.ServoA6.Direction",
-//            xPL.ServoA6.Direction);
-
-    xcprintf(ANSI_TX_LightGreen);
-//    for (int slot = 0; slot < SLOT_COUNT; slot++)
-//    {
-//        xprintf("\t  [%2d] %-48s[%d] : %8lu : U32, pulse",
-//                RPL_SET_SERVO_SLOT_POSITION_OFFSET + slot,
-//                "xPL.ServoA6.Slot.PositionOffset_pulse", slot,
-//                (unsigned long)xPL.ServoA6.Slot.PositionOffset_pulse[slot]);
-//    }
-    xcprintf(ANSI_TX_ORG);
-
-//    xprintf("\t  [%2d] %-51s : %8.3f : F32, rpm",
-//            RPL_SET_SERVO_JOG_SPEED,
-//            "xPL.ServoA6.Jog.Speed_rpm",
-//            (double)xPL.ServoA6.Jog.Speed_rpm);
-
+    xprintf("\t[ Decapper Settable Parameter ]");
+    xprintf("\t  [%2d] %-51s : %8.3f : F32, A",
+            RPL_SET_DECAP_RUN_CUR_Z, "xPL.Decapper.RunCur[Z]", (double)xPL.Decapper.RunCur[aZ]);
+    xprintf("\t  [%2d] %-51s : %8.3f : F32, A",
+            RPL_SET_DECAP_RUN_CUR_R, "xPL.Decapper.RunCur[R]", (double)xPL.Decapper.RunCur[aR]);
+    xprintf("\t  [%2d] %-51s : %8d : int",
+            RPL_SET_DECAP_SEL_MAX_CUR_Z, "xPL.Decapper.SelMaxCur[Z]", xPL.Decapper.SelMaxCur[aZ]);
+    xprintf("\t  [%2d] %-51s : %8d : int",
+            RPL_SET_DECAP_SEL_MAX_CUR_R, "xPL.Decapper.SelMaxCur[R]", xPL.Decapper.SelMaxCur[aR]);
+    xprintf("\t  [%2d] %-51s : %8d : int, 0~100 %%",
+            RPL_SET_DECAP_STOP_CUR_RATE_Z, "xPL.Decapper.StopCurRate[Z]", xPL.Decapper.StopCurRate[aZ]);
+    xprintf("\t  [%2d] %-51s : %8d : int, 0~100 %%",
+            RPL_SET_DECAP_STOP_CUR_RATE_R, "xPL.Decapper.StopCurRate[R]", xPL.Decapper.StopCurRate[aR]);
+    xprintf("\t  [%2d] %-51s : %8d : int, > 0",
+            RPL_SET_DECAP_STEP_RESOLUTION, "xPL.Decapper.StepResolution", xPL.Decapper.StepResolution);
+    xprintf("\t  [%2d] %-51s : %8ld : S32, pulse",
+            RPL_SET_DECAP_LIMIT_POS_Z, "xPL.Decapper.Limit_PosZ", (long)xPL.Decapper.Limit_PosZ);
+    xprintf("\t  [%2d] %-51s : %8ld : S32, pulse",
+            RPL_SET_DECAP_LIMIT_POS_R, "xPL.Decapper.Limit_PosR", (long)xPL.Decapper.Limit_PosR);
+    xprintf("\t  [%2d] %-51s : %8ld : S32, pulse",
+            RPL_SET_DECAP_SW_NEG_LIMIT_Z, "xPL.Decapper.SwNegLimit[Z]", (long)xPL.Decapper.SwNegLimit[aZ]);
+    xprintf("\t  [%2d] %-51s : %8ld : S32, pulse",
+            RPL_SET_DECAP_SW_POS_LIMIT_Z, "xPL.Decapper.SwPosLimit[Z]", (long)xPL.Decapper.SwPosLimit[aZ]);
+    xprintf("\t  [%2d] %-51s : %8ld : S32, pulse",
+            RPL_SET_DECAP_SW_NEG_LIMIT_R, "xPL.Decapper.SwNegLimit[R]", (long)xPL.Decapper.SwNegLimit[aR]);
+    xprintf("\t  [%2d] %-51s : %8ld : S32, pulse",
+            RPL_SET_DECAP_SW_POS_LIMIT_R, "xPL.Decapper.SwPosLimit[R]", (long)xPL.Decapper.SwPosLimit[aR]);
+    xprintf("\t  [%2d] %-51s : %8u : U8, 0/1",
+            RPL_SET_DECAP_SOFT_LIMIT_ENABLE, "xPL.Decapper.SoftLimitEnable",
+            (unsigned int)xPL.Decapper.SoftLimitEnable);
+    xprintf("\t  [%2d] %-51s : %8lu : U32, pulse/s^2",
+            RPL_SET_DECAP_Z_ACC, "xPL.Decapper.ZDecapAcc", (unsigned long)xPL.Decapper.ZDecapAcc);
+    xprintf("\t  [%2d] %-51s : %8ld : S32, pulse/s",
+            RPL_SET_DECAP_Z_VEL, "xPL.Decapper.ZDecapVel", (long)xPL.Decapper.ZDecapVel);
+    xprintf("\t  [%2d] %-51s : %8ld : S32, pulse",
+            RPL_SET_DECAP_Z_CAP_UP_POS, "xPL.Decapper.ZCap_UpPos", (long)xPL.Decapper.ZCap_UpPos);
+    xprintf("\t  [%2d] %-51s : %8ld : S32, pulse",
+            RPL_SET_DECAP_Z_CAP_SIDE_POS, "xPL.Decapper.ZCap_SidePos", (long)xPL.Decapper.ZCap_SidePos);
+    xprintf("\t  [%2d] %-51s : %8ld : S32, pulse",
+            RPL_SET_DECAP_Z_ORIGIN_POS, "xPL.Decapper.ZCap_Origin_Position",
+            (long)xPL.Decapper.ZCap_Origin_Position);
+    xprintf("\t  [%2d] %-51s : %8lu : U32, pulse/s^2",
+            RPL_SET_DECAP_R_ACC, "xPL.Decapper.RDecapAcc", (unsigned long)xPL.Decapper.RDecapAcc);
+    xprintf("\t  [%2d] %-51s : %8ld : S32, pulse/s",
+            RPL_SET_DECAP_R_VEL, "xPL.Decapper.RDecapVel", (long)xPL.Decapper.RDecapVel);
+    xprintf("\t  [%2d] %-51s : %8ld : S32, pulse",
+            RPL_SET_DECAP_R_POS, "xPL.Decapper.RDecapPos", (long)xPL.Decapper.RDecapPos);
 
     xprintf("\t----------------------------------------------------------------------");
     xprintf("\tExample:");
     xprintf("\t  PL %d,70.0      -> CPU overheat criteria = 70.0 degC", RPL_SET_DG_CPU_TEMP_OVERHEAT);
-    xprintf("\t  PL %d,10000     -> Robot door control timeout = 10000 ms", RPL_SET_DOOR_CONTROL_TIMEOUT);
-    xprintf("\t  PL %d,20000    -> Robot door motor speed = 20000 pps", RPL_SET_DOOR_MOTOR_SPEED);
-    xprintf("\t  PL %d,30.0     -> Servo home forward speed = 30.0 rpm", RPL_SET_SERVO_HOME_FWD_SPEED);
-    xprintf("\t  PL %d,1000     -> Servo slot[3] position offset = 1000 pulse", RPL_SET_SERVO_SLOT_POSITION_OFFSET + 2);
-
+    xprintf("\t  PL %d,20000     -> Z decapper velocity = 20000 pulse/s", RPL_SET_DECAP_Z_VEL);
+    xprintf("\t  PL %d,115200    -> Z cap upper position = 115200 pulse", RPL_SET_DECAP_Z_CAP_UP_POS);
+    xprintf("\t  PL %d,1         -> Soft limit enable", RPL_SET_DECAP_SOFT_LIMIT_ENABLE);
     xcprintf(ANSI_TX_LightYellow);
     xprintf("\t======================================================================");
     xcprintf(ANSI_TX_ORG);

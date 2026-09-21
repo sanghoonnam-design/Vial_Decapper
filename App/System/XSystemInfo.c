@@ -124,32 +124,12 @@ void SystemInfo_Network_SetIP(Network_t *net, const U8 ip[4])
 
 void makeVersionString(void)
 {
-    char suffix1, suffix2;
     U08 modelType = xSystemInfo.pl_modelType;
     int major = (xSystemInfo.pl_FW_Version / 10000);     // Major 버전
     int minor = (xSystemInfo.pl_FW_Version / 100) % 100; // Minor 버전
     int patch = xSystemInfo.pl_FW_Version % 100;         // Patch 버전
-    switch (GetSystemType())
-    {
-    case 1:
-        suffix1 = 'A';
-        suffix2 = '0' + modelType;
-        break;
-    case 2:
-        suffix1 = 'B';
-        suffix2 = '0' + modelType;
-        break;
-    case 3:
-        suffix1 = 'C';
-        suffix2 = '0' + modelType;
-        break;
-    default:
-        suffix1 = 'X'; // 쀍!~
-        suffix2 = '0';
-        break;
-    }
     snprintf(xSystemInfo.cd_FWVersion_str, sizeof(xSystemInfo.cd_FWVersion_str),
-             "%d.%d.%d%c%c", major, minor, patch, suffix1, suffix2);
+             "%d.%d.%dA%02u", major, minor, patch, (unsigned int)modelType);
 }
 
 U08 GetSystemType(void)
@@ -171,16 +151,14 @@ const char *GetSystemTypeString(void)
 
 const char *GetModelTypeString(void){
     switch (GetModelType()){
-    case MODEL_01:
-        return "MODEL-01";
-    case MODEL_02:
-        return "MODEL-02";
-    case MODEL_03:
-        return "MODEL-03";
-    case MODEL_04:
-        return "MODEL-04";
     case MODEL_05:
         return "MODEL-05";
+    case MODEL_15:
+        return "MODEL-15";
+    case MODEL_25:
+        return "MODEL-25";
+    case MODEL_50:
+        return "MODEL-50";
     default:
         return "UNKNOWN";
     }
