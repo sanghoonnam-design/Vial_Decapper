@@ -6,6 +6,7 @@
 #include "SWRTC.h"
 #include "XDebug.h"
 #include "http_server_task.h"
+#include "CDecap.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -95,14 +96,30 @@ void http_post_settime(const http_request_ctx_t *ctx)
     }
 }
 
+/**
+ * @brief HTTP 설정 작업용 Decapper 유지보수 잠금을 얻는다.
+ * 실패 시 응답을 HTTP 409 Decapper busy로 설정하고 false를 반환한다.
+ */
+static bool http_begin_maintenance(const http_request_ctx_t *ctx){
+    if (CDecap_BeginMaintenance()) return true;
+    http_response_set(ctx->resp, 409, "text/plain", "Decapper busy", 13);
+    return false;
+}
+
+/**
+ * @brief Decapper가 대기 상태일 때 공장 설정을 적용하고 HTTP 200을 응답한다.
+ * 유지보수 잠금을 얻은 뒤에만 타이머를 정지하며 복구 후 잠금을 해제한다.
+ */
 void http_post_factorySet(const http_request_ctx_t *ctx)
 {
     (void)ctx;
 
+    if (!http_begin_maintenance(ctx)) return;
     XTimer_Stop();
     SYSPL_FactorySetting();
     LOG_MSG_SEND("Factory setting done.");
     XTimer_Start();
+    CDecap_EndMaintenance();
 
     http_response_set(ctx->resp, 200, "text/plain", NULL, 0);
 }
@@ -121,6 +138,10 @@ void http_post_systemReset(const http_request_ctx_t *ctx)
     http_response_set(ctx->resp, 200, "text/plain", NULL, 0);
 }
 
+/**
+ * @brief HTTP 본문의 IP·서브넷·게이트웨이를 검사한 뒤 RAM 설정과 EEPROM을 갱신한다.
+ * Decapper 유지보수 잠금을 얻지 못하면 HTTP 409로 거절한다. 파싱 성공만으로 저장을 시작하지 않는다.
+ */
 void http_post_setNetwork(const http_request_ctx_t *ctx)
 {
     /* static: response body pointer must remain valid until TX completes */
@@ -168,6 +189,8 @@ void http_post_setNetwork(const http_request_ctx_t *ctx)
         return;
     }
 
+    if (!http_begin_maintenance(ctx)) return;
+
     memcpy(xSystemInfo.network.ip, ip, 4);
     memcpy(xSystemInfo.network.subnet, subnet, 4);
     memcpy(xSystemInfo.network.gw, gateway, 4);
@@ -178,6 +201,7 @@ void http_post_setNetwork(const http_request_ctx_t *ctx)
 
     EEPROMPL_SaveToEEPROM();
     XTimer_Start();
+    CDecap_EndMaintenance();
 
     snprintf(body, sizeof(body),
              "ip=%u.%u.%u.%u\n"

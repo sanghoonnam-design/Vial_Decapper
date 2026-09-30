@@ -19,6 +19,10 @@ Semaphore_Handle semHD_USD;
 #define CUTOFF_FREQ_LOADCELL (5.0f)    // 차단주파수
 #define CUTOFF_FREQ_TEMPERATURE (3.0f) // 차단주파수
 
+/**
+ * @brief 세마포어로 깨어날 때 Decapper 센서 → 모터 구동 → 그리퍼 보유 상태 순서로 갱신한다.
+ * FW_MODE_IDLE이면 갱신을 건너뛴다. 콜백은 CDecap_Init에서 등록되어 있어야 한다.
+ */
 VOID TASK_UpdateSIGData(void *pvParameters)
 {
     /** @note: USER CODE, Init. Task */
@@ -53,6 +57,9 @@ VOID TASK_UpdateSIGData(void *pvParameters)
     } /*@end FOREVER{}*/
 }
 
+/**
+ * @brief 센서 갱신 태스크의 주기 실행을 깨우는 이진 세마포어를 생성한다.
+ */
 int Init_UpdateSIGData(int Index)
 {
     int result = EXIT_SUCCESS;

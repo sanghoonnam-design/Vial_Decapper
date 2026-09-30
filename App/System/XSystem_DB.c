@@ -13,6 +13,10 @@ tsXControlData xCD;
 tsXParameterList xPL;
 teXActionType xAT;
 
+/**
+ * @brief SL(관측 상태), CD(명령 데이터), PL(설정값)의 RAM을 초기화한다.
+ * PL의 영구 설정은 뒤이어 부팅 저장장치 초기화에서 로드하므로 여기서 공장값을 채우지 않는다.
+ */
 void SystemDB_Initialize(void)
 {
     memset((char *)&xSL, 0, sizeof(tsXStateList));
@@ -25,6 +29,9 @@ void SystemDB_Initialize(void)
     // SystemDB_PL_Init(); // [주의] PL은 부팅후 초기화 부분에서 EEPROM 쪽에서 실행된다.
 }
 
+/**
+ * @brief 상태 데이터의 장비별 초기값을 넣는 확장 지점이다. 현재 실행문은 없다.
+ */
 void SystemDB_SL_Init(void)
 {
     /** @note USER CODE - START */
@@ -38,22 +45,24 @@ void SystemDB_SL_Init(void)
     /** @note USER CODE - END */
 }
 
+/**
+ * @brief 명령 데이터의 장비별 초기값을 넣는 확장 지점이다. 현재 실행문은 없다.
+ * Decapper 속도 비율 등 구동 초기값은 CDecap_Init에서 설정한다.
+ */
 void SystemDB_CD_Init(void)
 {
     /** @note USER CODE - START */
 
-    /* [주의] memset(0) 만으로는 SLOT_1(=0) 이 되어버린다.
-     *        SLOT_UNKNOWN 은 -1 이므로 부팅시 명시적으로 넣어줘야 한다.
-     *        (GSTA [07] 은 SlotNum + 1 로 보고하므로, 위치 미확정 = 0 이 되어야 함) */
+    /* Decapper의 추가 CD 초기값은 CDecap_Init에서 설정한다. */
 
     /** @note USER CODE - END */
 }
 
-/** *************************************************************************
- * @brief EEPROM에서 PL을 읽은 뒤 일부 PL 초기화
- *   1. EEPROM 에서 PL을 읽어온다.
- *   2. PL 일부에 대해 초기화를 진행한다.
- * *************************************************************************/
+/* 저장 설정을 읽은 뒤 필요한 장비별 보정을 위한 확장 지점. */
+/**
+ * @brief PL 로드 후 장비별 보정을 넣는 확장 지점이다.
+ * 현재 함수 본문은 비어 있으며 직접 EEPROM 읽기나 설정 보정을 수행하지 않는다.
+ */
 void SystemDB_PL_Init(void)
 {
     // ────────────────────────────────────────────────────────────────
@@ -66,8 +75,11 @@ void SystemDB_PL_Init(void)
     // ────────────────────────────────────────────────────────────────
 }
 
-void SystemDB_PL_Init_Factory(tsXParameterList *pl)
-{
+/**
+ * @brief 전달된 PL의 Decapper 전류·분해능·이동 범위와 CAP/DECAP 기본 목표를 채운다.
+ * 위치는 매크로로 환산된 pulse 값이다. RAM에 기본값을 넣을 뿐 저장과 드라이버 적용은 호출부의 책임이다.
+ */
+void SystemDB_PL_Init_Factory(tsXParameterList *pl) {
     // ────────────────────────────────────────────────────────────────
     /** @note USER CODE - START                                     **/
     // ────────────────────────────────────────────────────────────────
@@ -77,10 +89,10 @@ void SystemDB_PL_Init_Factory(tsXParameterList *pl)
 	pl->Decapper.SelMaxCur[aR] = CUR_MAX_17A; // Motor test 이후 수정 예정
 	pl->Decapper.StepResolution = R_3200;
 
-	pl->Decapper.SwNegLimit[aZ] = Z_Limmit_mm;
+	pl->Decapper.SwNegLimit[aZ] = -Z_Limmit_mm;
 	pl->Decapper.SwPosLimit[aZ] = Z_Limmit_mm;
 
-	pl->Decapper.SwNegLimit[aR] =  R_Limmit_mm;
+	pl->Decapper.SwNegLimit[aR] =  -R_Limmit_mm;
 	pl->Decapper.SwPosLimit[aR] =  R_Limmit_mm;
 
 	pl->Decapper.RunCur[aZ] = 0.9f * 1.0f; // 0.9A * 100%
@@ -91,9 +103,9 @@ void SystemDB_PL_Init_Factory(tsXParameterList *pl)
 	pl->Decapper.StopCurRate[aR] = 60;     // Run Current * 60%
 
 	/*해당 PL값은 실제 기구에 테스트 하면서 수정 예정*/
-	// 0번 모터 Master : Z / Slave : Y
+	// 모터 채널 0: Z, 채널 1: R. Y는 공압 출력으로 제어한다.
 
-	// 모터별 Limit mm 저장
+	// 모터별 제한 좌표 저장(pulse로 환산된 값)
 	pl->Decapper.Limit_PosZ = Z_Limmit_mm;
 	pl->Decapper.Limit_PosR = R_Limmit_mm;
 
@@ -117,14 +129,23 @@ void SystemDB_PL_Init_Factory(tsXParameterList *pl)
     // ──────
 }
 
+/**
+ * @brief SL 반영 기능을 위한 빈 확장 함수이다. 현재 상태 복사나 하드웨어 갱신은 하지 않는다.
+ */
 void SystemDB_SL_Push(void)
 {
 }
 
+/**
+ * @brief CD 반영 기능을 위한 빈 확장 함수이다. 현재 액션 등록이나 출력은 하지 않는다.
+ */
 void SystemDB_CD_Push(void)
 {
 }
 
+/**
+ * @brief PL 반영 기능을 위한 빈 확장 함수이다. 현재 저장이나 드라이버 재설정은 하지 않는다.
+ */
 void SystemDB_PL_Push(void)
 {
 }

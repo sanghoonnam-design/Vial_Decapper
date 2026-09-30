@@ -21,6 +21,10 @@ Semaphore_Handle semHD_APC;
 
 static U32 Control_StartTime = __2sec;
 
+/**
+ * @brief 주기 세마포어 수신 시 xAT 요청을 Decapper FSM 콜백으로 전달한다.
+ * 부팅 초기 대기 시간 또는 FW_MODE_IDLE에서는 제어를 건너뛴다. FSM은 호출마다 현재 단계만 진행한다.
+ */
 VOID TASK_ApplicationControl(void *pvParameters)
 {
     /** @note: USER CODE, Init. Task */
@@ -54,6 +58,10 @@ VOID TASK_ApplicationControl(void *pvParameters)
     } /*@end FOREVER{}*/
 }
 
+/**
+ * @brief 제어 태스크의 세마포어를 생성하고 Decapper 콜백·드라이버·상태를 초기화한다.
+ * CDecap_Init이 PL을 사용하므로 설정 로드 이후의 초기화 순서가 중요하다.
+ */
 int Init_ApplicationControl(int Index)
 {
     semHD_APC = xSemaphoreCreateBinary();

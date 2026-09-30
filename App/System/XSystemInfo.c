@@ -16,6 +16,10 @@
 
 tsXSystemInfo xSystemInfo;
 
+/**
+ * @brief 시스템 콜백·DB·하드웨어·저장 설정을 초기화하고 Decapper 식별/버전 정보를 맞춘다.
+ * 저장 정보와 빌드의 버전·장비·모델이 다르면 최신 값을 저장한 뒤 표시 문자열과 네트워크를 초기화한다.
+ */
 void System_Initialize(void)
 {
     /* system 구조체 초기화 */
@@ -104,12 +108,19 @@ SET_GET_FUNC_0_IMPL(SystemInfo, F32, cd_CpuTemperature)
 SET_GET_FUNC_0_IMPL(SystemInfo, U08, pl_FW_Mode)
 SET_GET_FUNC_0_IMPL(SystemInfo, U32, pl_IsExecutedDiagnosis)
 
+/**
+ * @brief 숫자형 펌웨어 버전을 저장하고 표시 문자열도 함께 갱신한다.
+ * 버전 인코딩은 major*10000 + minor*100 + patch이다.
+ */
 void SystemInfo_Set_pl_FW_Version(U32 version)
 {
     xSystemInfo.pl_FW_Version = version;
     makeVersionString();
 }
 
+/**
+ * @brief xSystemInfo에 저장된 숫자형 펌웨어 버전을 반환한다.
+ */
 U32 SystemInfo_Get_pl_FW_Version(void)
 {
     return xSystemInfo.pl_FW_Version;
@@ -122,8 +133,11 @@ void SystemInfo_Network_SetIP(Network_t *net, const U8 ip[4])
     memcpy(net->ip, ip, sizeof(net->ip));
 }
 
-void makeVersionString(void)
-{
+/**
+ * @brief 숫자 버전과 저장된 모델 번호를 major.minor.patchA모델 형식으로 변환한다.
+ * 예: 1.0.0과 MODEL_05는 1.0.0A05로 표시한다.
+ */
+void makeVersionString(void) {
     U08 modelType = xSystemInfo.pl_modelType;
     int major = (xSystemInfo.pl_FW_Version / 10000);     // Major 버전
     int minor = (xSystemInfo.pl_FW_Version / 100) % 100; // Minor 버전
@@ -132,23 +146,33 @@ void makeVersionString(void)
              "%d.%d.%dA%02u", major, minor, patch, (unsigned int)modelType);
 }
 
-U08 GetSystemType(void)
-{
+/**
+ * @brief 빌드 시 선택한 SYSTEM_TYPE 장비 식별 번호를 반환한다.
+ */
+U08 GetSystemType(void) {
 
     return SYSTEM_TYPE;
 }
 
-U08 GetModelType(void)
-{
+/**
+ * @brief 빌드 시 선택한 MODEL_TYPE 번호를 반환한다. 지원 모델은 05/15/25/50이다.
+ */
+U08 GetModelType(void) {
 
     return MODEL_TYPE;
 }
 
-const char *GetSystemTypeString(void)
-{
+/**
+ * @brief 빌드에 정의된 장비명 문자열을 반환한다. Decapper 빌드는 Vial_Decapper를 사용한다.
+ */
+const char *GetSystemTypeString(void) {
     return SYSTEM_TYPE_STR;
 }
 
+/**
+ * @brief 빌드 모델 번호를 MODEL-05/15/25/50 문자열로 변환한다.
+ * 정의되지 않은 모델 번호는 UNKNOWN으로 표시한다.
+ */
 const char *GetModelTypeString(void){
     switch (GetModelType()){
     case MODEL_05:

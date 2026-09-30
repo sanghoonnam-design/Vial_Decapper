@@ -63,6 +63,10 @@ const tsErrorEntry gErrorTable[] =
         {ERROR_CODE_A6_SERVO_SLOT_FAIL, /*       */ _CRITICAL, /* */ "[Slot] command failed."},
         {ERROR_CODE_A6_SERVO_MOVE_FAIL, /*       */ _CRITICAL, /* */ "movement failed."},
 
+        {ERROR_CODE_DECAP_TIMEOUT, _CRITICAL, "Decapper motion timed out."},
+        {ERROR_CODE_DECAP_LIMIT, _CRITICAL, "Decapper position limit exceeded or invalid."},
+        {ERROR_CODE_DECAP_STATE, _CRITICAL, "Decapper fault requires clear."},
+
         {ERROR_CODE_ERROR_STATE_MACHINE, /*      */ _INTERNAL, /*  */ "State-machine error."},
         {ERROR_CODE_INVALID_SUBSTEP, /*          */ _INTERNAL, /*  */ "Invalid sub-step."},
 

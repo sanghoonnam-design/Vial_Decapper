@@ -293,7 +293,7 @@ typedef struct{
 
     U32 RDecapAcc;
     S32 RDecapVel;
-    S32 RDecapPos;
+    S32 RDecapPos; // pulse 증분: CAP은 현재 R + 설정값, DECAP은 현재 R - 설정값
 
     int ForDebug[DEBUG_PL_SIZE];
 
@@ -436,20 +436,110 @@ typedef struct{
 extern tsxCDcap xCDecap;
 
 //Initialize
+/**
+ * @brief 완전히 대기 중일 때만 Decapper 오류와 공통 오류 코드를 해제한다.
+ * 동작·대기 명령·유지보수가 있으면 아무것도 바꾸지 않는다. HOME 완료 상태를 새로 만들지는 않는다.
+ */
 void CDecap_Error_Clear(void);
+/**
+ * @brief STOP을 독립 플래그와 xAT에 기록하여 다음 제어 주기에 우선 처리하게 한다.
+ * 임계 구역에서 기록하므로 뒤따르는 PAUSE/RESUME가 xAT를 바꿔도 STOP 요청은 남는다.
+ * 이 함수 자체가 하드웨어 정지 완료를 기다리지는 않는다.
+ */
+void CDecap_RequestStop(void);
+/**
+ * @brief 유지보수·STOP·대기 액션이 없고 FSM/Busy 및 샘플된 Z/R 구동 상태가 모두 대기인지 반환한다.
+ * 오류 유무와는 별도 판정이다. 오류 상태에서도 완전히 멈췄으면 CLER를 허용하기 위해 true가 될 수 있다.
+ */
+bool CDecap_IsIdle(void);
+/**
+ * @brief 저장·초기화 등 유지보수 작업이 일반 동작을 차단 중인지 반환한다.
+ */
+bool CDecap_IsMaintenanceActive(void);
+/**
+ * @brief 임계 구역에서 대기 여부 확인과 유지보수 잠금 획득을 함께 수행한다.
+ * true일 때만 작업을 시작하며 성공한 호출은 모든 종료 경로에서 EndMaintenance와 짝을 맞춘다.
+ * false이면 잠금을 얻지 못했으므로 타이머 정지나 설정 변경을 하면 안 된다.
+ */
+bool CDecap_BeginMaintenance(void);
+/**
+ * @brief 획득한 유지보수 잠금을 임계 구역에서 해제한다.
+ * 주기 타이머를 정지한 호출부는 타이머를 복구한 뒤 이 함수를 호출한다.
+ */
+void CDecap_EndMaintenance(void);
+/**
+ * @brief 대기·오류 없음 확인과 일반 액션 등록을 임계 구역에서 함께 처리한다.
+ * true는 요청 접수이며 완료가 아니다. false면 기존 요청을 유지한다.
+ * 호출부가 유효한 일반 액션을 전달해야 한다. STOP은 RequestStop으로 별도 요청한다.
+ */
+bool CDecap_TryRequestAction(teXActionType action);
+/**
+ * @brief 유지 중인 Decapper 오류를 xSL 및 공통 오류 조회 값과 동기화한다.
+ * isError가 있고 저장된 원인이 없으면 상태 오류 2820을 사용한다. 모션 출력은 변경하지 않는다.
+ */
+void CDecap_ReportError(void);
+/**
+ * @brief Decapper 콜백, 상태 머신, Z/R 드라이버와 공압 출력을 초기화한다.
+ * PL을 읽은 뒤 호출한다. 전류·분해능·리미트를 적용하고 위치 카운터를 0으로 설정한다.
+ * 이때의 0은 기구 원점 확정이 아니므로 isHomed는 false이며 HOME이 별도로 필요하다.
+ */
 void CDecap_Init(void);
 //Update SigDate============================================
+/**
+ * @brief IO 확장기의 Z/Y 리미트, 그리퍼, CT 감지 입력을 xSL에 복사한다.
+ * 리미트는 후속 시퀀스에서 0을 도착으로 해석한다. 이 함수 자체는 출력을 변경하지 않는다.
+ */
 void CDecap_Sensor_Update(void);
+/**
+ * @brief 현재 헤더에만 남아 있는 미구현 선언이다. 이 프로젝트에서 정의나 호출은 없으며 센서 갱신은 등록된 콜백을 사용한다.
+ */
 void CDecap_M_S_Detect(void);
+/**
+ * @brief TMC2660에서 Z/R 모터의 구동 여부를 읽어 xSL에 반영한다.
+ * 이름의 Y와 달리 실제 대상은 aZ와 aR이다. 공압 Y축 완료는 리미트 센서로 판단한다.
+ */
 void YZ_Motor_Status_Update(void);
+/**
+ * @brief 그리퍼의 Open/Close 입력이 모두 0이면 물체를 잡은 상태로 해석한다.
+ * 이 판정으로 xSL.Decapper의 Body_is와 Cap_is를 갱신한다. 별도 CT 감지 입력 판정과는 구분한다.
+ */
 void Cap_CAP_Body_Detect_Sensor(void);
 //Diagnose==================================================
+/**
+ * @brief 센서 조합의 이상을 xSL.Decapper 오류 플래그에 누적한다.
+ * Z/Y 리미트가 모두 0이거나 그리퍼 Open/Close가 모두 1이면 해당 오류를 설정한다.
+ * 정상 입력으로 돌아와도 자동 해제하지 않는다. 이 센서 오류를 정지에 연결하는 FSM 인터록은 현재 주석 처리되어 있다.
+ */
 void CDecapping_CheckSensorValidity(void);
 //Application===============================================
+/**
+ * @brief 애플리케이션 제어 주기마다 요청을 해석하고 현재 FSM 핸들러를 한 번 실행한다.
+ * STOP을 최우선 처리하고 유지보수·오류 중에는 일반 동작을 막는다. 일반 요청은 IDLE에서만 시작한다.
+ * PAUSE/RESUME 조건과 이동 범위를 검사한다. HOME은 좌표 확립 중이므로 현재 위치 범위 감시에서 제외한다.
+ * 센서 조합 오류를 정지에 연결하는 블록은 기구 확인 전까지 주석 상태로 유지되어 있다.
+ */
 void CDecap_Action_Statemachine(teXActionType actionType);
+/**
+ * @brief Body 그리퍼 요청값을 xCD.CT.Body에 저장하고 수동 요청 플래그를 설정한다.
+ * 즉시 출력하지 않으며 호출부가 ACTION_BODY_GRIP을 별도로 등록해야 한다.
+ */
 void CDecap_SetBodyGripCommand(U08 onoff);
+/**
+ * @brief Cap 그리퍼 요청값을 xCD.CT.Cap에 저장하고 수동 요청 플래그를 설정한다.
+ * 즉시 출력하지 않으며 호출부가 ACTION_CAP_GRIP을 별도로 등록해야 한다.
+ */
 void CDecap_SetCapGripCommand(U08 onoff);
+/**
+ * @brief TMC429의 현재 Z pulse 좌표를 읽어 반환하고 xCD의 표시용 위치도 갱신한다.
+ */
 S32 CDecap_GetZPosition(void);
+/**
+ * @brief 새 이동 명령에 적용할 전체 속도 비율을 저장한다.
+ * percent는 1~100만 허용하며 범위 밖이면 기존 값을 유지한다. 진행 중인 드라이버 명령을 재발행하지 않는다.
+ */
 void CDecap_SetSpeedPercent(U08 percent);
+/**
+ * @brief 현재 xCD에 저장된 전체 속도 비율(%)을 반환한다.
+ */
 U08 CDecap_GetSpeedPercent(void);
 #endif /* APP_HW_DEVICE_CDCAP_H_ */

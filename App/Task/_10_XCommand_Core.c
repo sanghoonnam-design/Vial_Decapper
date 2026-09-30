@@ -21,6 +21,11 @@
 tsXBuffer *xSendMsg; // host -> client 전송 메시지버퍼
 SemaphoreHandle_t xMutex_Command;
 
+/* 실제로 입력 가능한 이름은 테이블의 Command 열이다.
+ * 예: 저장은 SAVE, 읽기는 LOAD, 오류 해제는 CLR/DRT/CLEAR로 등록되어 있다.
+ * 함수명·도움말 예제의 SAVEE/LOADE/CLER가 자동으로 별칭 등록되지는 않는다.
+ * CommandType은 도움말 분류이며 ExecuteFromTable의 실행 권한 검사가 아니다.
+ */
 tsXCommandMapping gCoreCommandTable[] = {
 	/*User Command*/
 	{0, "VER",	/*		*/ CMD_Handle_VERS, /*					*/ "Get the FW version.", /*			*/ "VERSION"},   // 버전 정보 읽기
@@ -44,7 +49,7 @@ tsXCommandMapping gCoreCommandTable[] = {
 	{1, "IP", /*        */ CMD_Handle_SetGetIP, /*				*/ "Set/Get IP", /*						*/ "IP 192,168,0,150"},  // IP 셋팅/읽기
 	{1, "SETIP", /*	    */ CMD_Handle_SetGetIP, /*				*/ "Set/Get IP", /*						*/ "IP 192,168,0,150"},  // IP 셋팅/읽기
 
-	{1, "RTC", /*       */ CMD_Handle_RTC, /*					*/ "Set/Get the RTC", /*				*/ "RTC y,m,d,h,min,s"}, // 리부트 실행
+	{1, "RTC", /*       */ CMD_Handle_RTC, /*					*/ "Set/Get the RTC", /*				*/ "RTC y,m,d,h,min,s"}, // RTC 조회/설정
 	{1, "DATE", /*      */ CMD_Handle_RTC, /*					*/ "Set/Get the RTC", /*				*/ "RTC y,m,d,h,min,s"}, // 리부트 실행
 
 	{1, "SYSTEM", /*    */ CMD_Handle_ContFullInfo, /*			*/ "Controller information", /*			*/ "SYSTEM"},              // 하드웨어 정보 출력
@@ -84,6 +89,10 @@ static int gWidth_Command = 23; // default width for help display
 static int gWidth_Help = 10;    // default width for command display in help
 static void CLI_GetMaxHelpWidth(void);
 
+/**
+ * @brief 공유 명령 뮤텍스와 응답 버퍼를 생성한다.
+ * 명령 처리 전에 호출한다. 뮤텍스 생성 실패는 대기 루프, 버퍼 생성 실패는 오류 로그로 처리한다.
+ */
 void Init_CommandHandling(void)
 {
     xMutex_Command = xSemaphoreCreateMutex();
@@ -111,6 +120,10 @@ void Init_CommandHandling(void)
  * @brief Commmand 처리
  **********************************************************************************************/
 /**********************************************************************************************/
+/**
+ * @brief 테이블에서 명령 문자열이 일치하는 첫 핸들러를 호출한다.
+ * true는 일치 항목을 실행했다는 뜻이며 명령 성공 여부는 핸들러의 응답으로 판단한다.
+ */
 static bool ExecuteFromTable(const tsXCommandMapping *table, int count,
                              const tsXParsedData *parsedData, U08 useTCP)
 {
@@ -125,6 +138,11 @@ static bool ExecuteFromTable(const tsXCommandMapping *table, int count,
     return false;
 }
 
+/**
+ * @brief 파싱된 명령을 뮤텍스로 직렬화하여 Core → Module 순서로 검색하고 응답을 전송한다.
+ * parsedData는 유효한 파싱 결과여야 하며 useTCP는 COMM_USB/TCP/RS232C 구분값이다.
+ * USB의 명령 ?는 도움말 출력 후에도 핸들러에 전달한다. 응답 필터는 현재 통신 경로와 무관하게 호출된다.
+ */
 void Handle_command(const tsXParsedData *parsedData, U08 useTCP)
 {
     if (xSemaphoreTake(xMutex_Command, portMAX_DELAY) != pdTRUE)
@@ -174,6 +192,11 @@ void Handle_command(const tsXParsedData *parsedData, U08 useTCP)
     xSemaphoreGive(xMutex_Command);
 }
 
+/**
+ * @brief 문자열에 CRLF를 붙이고 통신 경로별 파싱 결과 구조체를 선택하여 명령을 실행한다.
+ * NULL/빈 문자열·지원하지 않는 경로·파싱 실패는 실행하지 않는다.
+ * 임시 버퍼가 static이며 파싱은 명령 뮤텍스 획득 전이므로 동시 호출을 안전하게 보장하는 진입점은 아니다.
+ */
 void Handle_command_by_string(const char *cmdStr, U08 useTCP)
 {
     teXParsingErrorCode result;
@@ -211,6 +234,10 @@ void Handle_command_by_string(const char *cmdStr, U08 useTCP)
     }
 }
 
+/**
+ * @brief src를 dstSize-3까지 복사한 뒤 CRLF와 널 종료를 붙인다.
+ * 초과 입력은 잘리며 기존 CRLF를 제거하지 않는다. 포인터가 없거나 공간이 3 미만이면 쓰지 않는다.
+ */
 void CMD_MakeCommandWithCRLF(char *dst, size_t dstSize, const char *src)
 {
     if (!dst || !src || dstSize < 3) // 3-->최소: "\r\n\0"
@@ -229,6 +256,10 @@ void CMD_MakeCommandWithCRLF(char *dst, size_t dstSize, const char *src)
     dst[len] = '\0';
 }
 
+/**
+ * @brief 응답 생략 목록에 명령 이름이 있으면 true를 반환한다.
+ * 이름과 달리 이 함수는 통신 경로를 받지 않는다. 현재 호출부에서는 TCP/직렬 응답에도 이 필터가 적용된다.
+ */
 bool CMD_ShouldSkip_USBResponse(const tsXParsedData *parsedData)
 {
     // USB로 응답/에코 생략할 명령어 리스트, 필요에 따라 추가
@@ -250,6 +281,10 @@ bool CMD_ShouldSkip_USBResponse(const tsXParsedData *parsedData)
 /**********************************************************************************************/
 /**********************************************************************************************/
 
+/**
+ * @brief VER/VERS/VERSION: 인자 없이 펌웨어 버전 표시 문자열을 응답 버퍼에 기록한다.
+ * 모델 접미사가 포함된 xSystemInfo.cd_FWVersion_str을 그대로 사용한다.
+ */
 void CMD_Handle_VERS(const tsXParsedData *parsedData, U08 useTCP)
 {
     if (parsedData->ParamCount == 0)
@@ -265,6 +300,10 @@ void CMD_Handle_VERS(const tsXParsedData *parsedData, U08 useTCP)
     }
 }
 
+/**
+ * @brief 현재 Core 명령 테이블에 등록되지 않은 FAS I/O 확장용 핸들러이다.
+ * 인자 없는 본문은 주석만 있어 I/O 값을 응답하지 않는다.
+ */
 void CMD_Handle_Get_FAS_IO_State(const tsXParsedData *parsedData, U08 useTCP)
 {
     if (parsedData->ParamCount == 0)
@@ -282,6 +321,10 @@ void CMD_Handle_Get_FAS_IO_State(const tsXParsedData *parsedData, U08 useTCP)
     }
 }
 
+/**
+ * @brief GERR/ERR: 인자 없이 현재 공통 오류 코드 문자열을 응답한다.
+ * 오류를 해제하거나 Decapper 오류 상태를 새로 동기화하지는 않는다.
+ */
 void CMD_Handle_GERR(const tsXParsedData *parsedData, U08 useTCP)
 {
 
@@ -298,6 +341,9 @@ void CMD_Handle_GERR(const tsXParsedData *parsedData, U08 useTCP)
     }
 }
 
+/**
+ * @brief GERD/ERD: 인자 없이 현재 공통 오류의 설명 문자열을 응답한다.
+ */
 void CMD_Handle_GERD(const tsXParsedData *parsedData, U08 useTCP)
 {
     if (parsedData->ParamCount == 0)
@@ -313,8 +359,15 @@ void CMD_Handle_GERD(const tsXParsedData *parsedData, U08 useTCP)
     }
 }
 
+/**
+ * @brief 대기 상태에서만 Decapper 오류를 명시적으로 해제한다. 동작/대기 요청이 있으면 BUSY를 응답한다.
+ */
 void CMD_Handle_CLER(const tsXParsedData *parsedData, U08 useTCP){
     if (parsedData->ParamCount == 0){
+        if (!CDecap_IsIdle()){
+            XBuffer_AddString(xSendMsg, "BUSY", NO_COMMA);
+            return;
+        }
     	CDecap_Error_Clear();
     }
     else
@@ -326,10 +379,25 @@ void CMD_Handle_CLER(const tsXParsedData *parsedData, U08 useTCP){
     }
 }
 
+/**
+ * @brief 명령 처리용 유지보수 잠금을 획득한다. 실패하면 BUSY를 응답하고 false를 반환한다.
+ * 성공한 호출부는 타이머 복구 후 EndMaintenance를 호출해야 한다.
+ */
+static bool CMD_BeginMaintenance(void){
+    if (CDecap_BeginMaintenance()) return true;
+    XBuffer_AddString(xSendMsg, "BUSY", NO_COMMA);
+    return false;
+}
+
+/**
+ * @brief 대기 상태에서 PL을 EEPROM에 저장한다.
+ * RPOS 저장 후보가 있으면 먼저 ZCap_UpPos에 반영한다. 유지보수 잠금 획득 후에만 주기 타이머를 정지한다.
+ */
 void CMD_Handle_SAVEE(const tsXParsedData *parsedData, U08 useTCP)
 {
     if (parsedData->ParamCount == 0)
     {
+        if (!CMD_BeginMaintenance()) return;
         XTimer_Stop();
         if (gZCapUpPosSavePending)
         {
@@ -341,6 +409,7 @@ void CMD_Handle_SAVEE(const tsXParsedData *parsedData, U08 useTCP)
 
         EEPROMPL_SaveToEEPROM();
         XTimer_Start();
+        CDecap_EndMaintenance();
     }
     else
     {
@@ -351,13 +420,19 @@ void CMD_Handle_SAVEE(const tsXParsedData *parsedData, U08 useTCP)
     }
 }
 
+/**
+ * @brief 대기 상태에서 Flash 저장 함수를 실행한다.
+ * 유지보수 잠금으로 새 모션 접수를 막고 타이머 복구 뒤 잠금을 해제한다.
+ */
 void CMD_Handle_SAVEF(const tsXParsedData *parsedData, U08 useTCP)
 {
     if (parsedData->ParamCount == 0)
     {
+        if (!CMD_BeginMaintenance()) return;
         XTimer_Stop();
         EEPROMPL_SaveToFlash();
         XTimer_Start();
+        CDecap_EndMaintenance();
     }
     else
     {
@@ -368,16 +443,22 @@ void CMD_Handle_SAVEF(const tsXParsedData *parsedData, U08 useTCP)
     }
 }
 
+/**
+ * @brief 대기 상태에서 갱신 시각을 기록하고 EEPROM과 Flash 저장 함수를 실행한다.
+ * SAVEE와 달리 RPOS 저장 후보를 반영하는 코드는 이 핸들러에 없다.
+ */
 void CMD_Handle_SAVEA(const tsXParsedData *parsedData, U08 useTCP)
 {
     if (parsedData->ParamCount == 0)
     {
+        if (!CMD_BeginMaintenance()) return;
         XTimer_Stop();
         // [YYMMDD] parameter를 EEPROM에 저장한 날짜 저장
         xPL.Header.UpdateDate = SWRTC_GetTime_YYMMDDHH();
 
         EEPROMPL_SaveToEEPROMandFlash();
         XTimer_Start();
+        CDecap_EndMaintenance();
     }
     else
     {
@@ -388,14 +469,20 @@ void CMD_Handle_SAVEA(const tsXParsedData *parsedData, U08 useTCP)
     }
 }
 
+/**
+ * @brief 대기 상태에서 EEPROM을 gEEPROM으로 읽고 저장 구조를 출력한다.
+ * 읽기 동안 유지보수 잠금을 유지한다. Decapper 드라이버 재초기화를 직접 호출하지 않는다.
+ */
 void CMD_Handle_LOADE(const tsXParsedData *parsedData, U08 useTCP)
 {
     if (parsedData->ParamCount == 0)
     {
+        if (!CMD_BeginMaintenance()) return;
         XTimer_Stop();
         EEPROMPL_LoadFromEEPROM(&gEEPROM);
         EEPROMPL_PrintEepromStructure_user();
         XTimer_Start();
+        CDecap_EndMaintenance();
     }
     else
     {
@@ -406,13 +493,19 @@ void CMD_Handle_LOADE(const tsXParsedData *parsedData, U08 useTCP)
     }
 }
 
+/**
+ * @brief 대기 상태에서 Flash 읽기 함수를 호출한다.
+ * 주기 타이머 정지 전 유지보수 잠금을 얻고 복구 후 해제한다.
+ */
 void CMD_Handle_LOADF(const tsXParsedData *parsedData, U08 useTCP)
 {
     if (parsedData->ParamCount == 0)
     {
+        if (!CMD_BeginMaintenance()) return;
         XTimer_Stop();
         EEPROMPL_LoadFromFlash(&gEEPROM);
         XTimer_Start();
+        CDecap_EndMaintenance();
     }
     else
     {
@@ -424,14 +517,20 @@ void CMD_Handle_LOADF(const tsXParsedData *parsedData, U08 useTCP)
 }
 
 // Compare the values of Flash and EEPROM.
+/**
+ * @brief 대기 상태에서 EEPROM/Flash 비교와 저장 구조 출력을 실행한다.
+ * 타이머를 정지하는 진단 작업이므로 새 모션 요청을 유지보수 잠금으로 막는다.
+ */
 void CMD_Handle_LOADC(const tsXParsedData *parsedData, U08 useTCP)
 {
     if (parsedData->ParamCount == 0)
     {
+        if (!CMD_BeginMaintenance()) return;
         XTimer_Stop();
         EEPROMPL_CompareEEPROMandFlash();
         EEPROMPL_PrintEepromStructure_user();
         XTimer_Start();
+        CDecap_EndMaintenance();
     }
     else
     {
@@ -442,17 +541,23 @@ void CMD_Handle_LOADC(const tsXParsedData *parsedData, U08 useTCP)
     }
 }
 
+/**
+ * @brief 대기 상태에서 공장 설정을 적용하고 EEPROM을 다시 읽어 결과를 출력한다.
+ * Decapper 동작 중에는 BUSY로 거절하며 잠금은 타이머 복구 후 해제한다.
+ */
 void CMD_Handle_FACTORY(const tsXParsedData *parsedData, U08 useTCP)
 {
     if (parsedData->ParamCount == 0)
     {
+        if (!CMD_BeginMaintenance()) return;
         XTimer_Stop(); // EEPROM 을 다룰때는 반드시 HW Timer를 끄고 한다.
         xprintf("wait....");
         SYSPL_FactorySetting();                       // Factory 셋팅하고,
         memset(&gEEPROM, 0, sizeof(tsEEPROM_Config)); // 현재 구조체 리셋,
         EEPROMPL_LoadFromEEPROM(&gEEPROM);            // 저장이 잘되었는지 다시 읽어오고,
         EEPROMPL_PrintEepromStructure_user();         // 읽어온거 확인한다..
-        XTimer_Start();                               // HW Timer 다시 enable
+        XTimer_Start();
+        CDecap_EndMaintenance();                               // HW Timer 다시 enable
     }
     else
     {
@@ -463,13 +568,19 @@ void CMD_Handle_FACTORY(const tsXParsedData *parsedData, U08 useTCP)
     }
 }
 
+/**
+ * @brief 대기 상태에서 EEPROM 구조를 진단 출력한다.
+ * 현재 구현이 타이머를 정지하므로 출력 작업에도 유지보수 잠금을 적용한다.
+ */
 void CMD_Handle_PrintParams(const tsXParsedData *parsedData, U08 useTCP)
 {
     if (parsedData->ParamCount == 0)
     {
+        if (!CMD_BeginMaintenance()) return;
         XTimer_Stop();
         EEPROMPL_PrintEepromStructure_user();
         XTimer_Start();
+        CDecap_EndMaintenance();
     }
     else
     {
@@ -480,6 +591,10 @@ void CMD_Handle_PrintParams(const tsXParsedData *parsedData, U08 useTCP)
     }
 }
 
+/**
+ * @brief DI는 전체 디지털 입력을, DI 채널은 1~NUM_IN 중 지정 입력을 콘솔에 출력한다.
+ * 사용자 채널 번호를 0 기준으로 바꿔 읽는다. 응답 버퍼에 입력 목록을 넣는 방식은 아니다.
+ */
 void CMD_Handle_DI(const tsXParsedData *parsedData, U08 useTCP)
 {
     if (parsedData->ParamCount == 0)
@@ -501,6 +616,12 @@ void CMD_Handle_DI(const tsXParsedData *parsedData, U08 useTCP)
     }
 }
 
+/**
+ * @brief DO는 전체 출력 토글, DO 채널은 단일 토글, DO 채널,값은 지정 출력을 설정한다.
+ * 채널은 1 기준이다. 값은 양수면 HIGH, 나머지는 LOW로 해석한다.
+ * 99는 I/O 초기화, 100은 호출마다 다음 출력 하나를 토글한다. 실행 전 디지털 루프백을 해제한다.
+ * Decapper FSM을 거치지 않고 공압/그리퍼와 공유하는 실제 출력을 직접 변경하는 시험 명령이다.
+ */
 void CMD_Handle_DO(const tsXParsedData *parsedData, U08 useTCP)
 {
     static U08 state = 0;
@@ -611,6 +732,10 @@ void CMD_Handle_DO(const tsXParsedData *parsedData, U08 useTCP)
     }
 }
 
+/**
+ * @brief RESET/REBO/REBOOT: 안내 출력 후 백업 도메인을 리셋하고 MCU 소프트웨어 리셋을 요청한다.
+ * 인자 개수와 Busy를 검사하지 않으며 정상 응답 전송 전에 재부팅될 수 있다.
+ */
 void CMD_Handle_REBOOT(const tsXParsedData *parsedData, U08 useTCP)
 {
     xcprintf(ANSI_BG_BRIGHT_Red);
@@ -636,6 +761,11 @@ void CMD_Handle_REBOOT(const tsXParsedData *parsedData, U08 useTCP)
 }
 
 
+/**
+ * @brief RTC/DATE: 인자 없으면 년·월·일·시·분·초를 응답하고 콘솔에 표시한다.
+ * 설정은 정수 6개이며 년은 0~99이다. 각 필드 범위를 검사하고 날짜 변경 플래그를 설정한다.
+ * 월별 일수와 윤년 조합 검사는 이 핸들러에 없다.
+ */
 void CMD_Handle_RTC(const tsXParsedData *parsedData, U08 useTCP)
 {
     SW_DateTime_t dt;
@@ -704,6 +834,11 @@ void CMD_Handle_RTC(const tsXParsedData *parsedData, U08 useTCP)
     }
 }
 
+/**
+ * @brief IP/SETIP: 인자 없으면 IP 4개 옥텟과 포트를 응답하며 4개 인자는 RAM의 IP를 변경한다.
+ * 현재 EEPROM 저장과 Network_Init 호출은 주석 상태이므로 여기서 영구 저장/즉시 네트워크 재설정을 하지 않는다.
+ * 현재 구현은 검사 전에 타이머를 멈추며 잘못된 옥텟이나 전체 0/255 주소의 조기 반환에서는 타이머를 복구하지 않는다.
+ */
 void CMD_Handle_SetGetIP(const tsXParsedData *parsedData, U08 useTCP)
 {
     // help
@@ -779,6 +914,10 @@ void CMD_Handle_SetGetIP(const tsXParsedData *parsedData, U08 useTCP)
     }
 }
 
+/**
+ * @brief DB ?: 디버그 플래그를 출력한다. DB 1~4: 진단 비활성·파싱 출력·CAN 수신/송신 출력을 토글한다.
+ * 5/6 분기는 현재 주석만 있어 동작하지 않는다. 1번은 true가 진단 비활성을 의미한다.
+ */
 void CMD_Handle_DebugMode(const tsXParsedData *parsedData, U08 useTCP)
 {
     if (parsedData->ParamCount == 1 && parsedData->Params[0].type == PARAM_TYPE_INT)
@@ -848,6 +987,10 @@ void CMD_Handle_DebugMode(const tsXParsedData *parsedData, U08 useTCP)
     }
 }
 
+/**
+ * @brief SIZE: 인자 없이 EEPROM/SL/CD/PL 구조체의 바이트 크기를 콘솔에 출력한다.
+ * SL/CD/PL 크기가 4의 배수가 아니면 진단 로그를 남긴다. 메모리 배치를 수정하지는 않는다.
+ */
 void CMD_Handle_GetSize(const tsXParsedData *parsedData, U08 useTCP)
 {
     if (parsedData->ParamCount == 0)
@@ -887,6 +1030,11 @@ void CMD_Handle_GetSize(const tsXParsedData *parsedData, U08 useTCP)
     }
 }
 
+/**
+ * @brief MODE 정수: 0 기본, 1 IDLE, 2 타이머 정지, 3 APC_STOP, 4 공장 시험 모드 값을 설정한다.
+ * 0/3/4는 필요 시 타이머를 시작한다. 실제 모드별 동작은 각 태스크가 해당 값을 검사하는 방식에 따른다.
+ * 모터 정지 명령을 보내는 함수가 아니므로 STOP과 구분한다.
+ */
 void CMD_Handle_FWMode(const tsXParsedData *parsedData, U08 useTCP)
 {
     if (parsedData->ParamCount == 1 && parsedData->Params[0].type == PARAM_TYPE_INT)
@@ -945,6 +1093,11 @@ void CMD_Handle_FWMode(const tsXParsedData *parsedData, U08 useTCP)
     }
 }
 
+/**
+ * @brief HT 인덱스: 하드웨어 시험 플래그를 토글하고 HT 100으로 상태를 출력한다.
+ * 실제 구현은 0~4 루프백, 10 EEPROM, 11 SD, 13 스위치이다. 6~9는 빈 분기다.
+ * 도움말에 표시되는 5 DAC/12 RTC는 현재 실행 분기가 없다. 시험 실행은 해당 플래그를 읽는 쪽에서 이루어진다.
+ */
 void CMD_Handle_HWTest(const tsXParsedData *parsedData, U08 useTCP) // 제어기 하드웨어 테스트
 {
     if (parsedData->ParamCount == 1 && parsedData->Params[0].type == PARAM_TYPE_INT)
@@ -1050,6 +1203,10 @@ void CMD_Handle_HWTest(const tsXParsedData *parsedData, U08 useTCP) // 제어기
     }
 }
 
+/**
+ * @brief TT 인자 1~3개를 테스트 포트 설정에 복사하고 트리거 제어 함수를 실행한다.
+ * 그 밖의 개수는 첫 설정을 0으로 한다. 이 함수는 타입/범위를 검증하거나 남은 설정을 모두 초기화하지 않는다.
+ */
 void CMD_Handle_TaskTrigger(const tsXParsedData *parsedData, U08 useTCP)
 {
     xTrigger.enabled = YES;
@@ -1070,6 +1227,10 @@ void CMD_Handle_TaskTrigger(const tsXParsedData *parsedData, U08 useTCP)
     XTP_ControlTriggerPort(); // 디버깅용 //TODO usb로만 프린트 하게 수정 할것
 }
 
+/**
+ * @brief TIMER: 현재 주기 타이머 상태를 반전하고 로그를 출력한다.
+ * 인자나 Decapper Busy를 검사하지 않으며 하드웨어 모터 정지와는 별개이다.
+ */
 void CMD_Handle_TimerOnOff(const tsXParsedData *parsedData, U08 useTCP)
 {
     // toggle
@@ -1085,11 +1246,18 @@ void CMD_Handle_TimerOnOff(const tsXParsedData *parsedData, U08 useTCP)
     }
 }
 
+/**
+ * @brief NOP: 아무 동작도 하지 않는 핸들러이다. 명령 프레임 응답은 공통 처리부가 담당한다.
+ */
 void CMD_Handle_NoOperation(const tsXParsedData *parsedData, U08 useTCP)
 {
     // No Operation Code
 }
 
+/**
+ * @brief CLC: 콘솔 화면 지우기 ANSI 시퀀스를 출력한다.
+ * 장비 상태·오류·데이터를 초기화하는 명령은 아니다.
+ */
 void CMD_Handle_ClearScreen(const tsXParsedData *parsedData, U08 useTCP)
 {
     xcprintf(ANSI_CLEAR_TERMINAL);
@@ -1109,6 +1277,10 @@ void CMD_Handle_ClearScreen(const tsXParsedData *parsedData, U08 useTCP)
  *     ↓               ↓
  *   TIM2~7          TIM1, TIM8
  *   (×2 if divided)  (×2 if divided)
+ */
+/**
+ * @brief SYSTEM/SYS: MCU 클럭·PLL·식별자·Flash·벡터·인터럽트·주변장치 정보를 콘솔에 출력한다.
+ * 레지스터/HAL 조회값을 사용하며 클럭이나 하드웨어 설정을 변경하지 않는다.
  */
 void CMD_Handle_ContFullInfo(const tsXParsedData *parsedData, U08 useTCP)
 {
@@ -1249,6 +1421,11 @@ void CMD_Handle_ContFullInfo(const tsXParsedData *parsedData, U08 useTCP)
     xcprintf("=========================================\r\n");
 }
 
+/**
+ * @brief 현재 테이블에서 사용하지 않는 단순 IP 설정 핸들러이다.
+ * 인자 4개를 U8로 변환하여 RAM에 복사하며 값 범위 검사·저장·네트워크 재초기화는 하지 않는다.
+ * 등록된 IP/SETIP는 CMD_Handle_SetGetIP로 연결되어 있다.
+ */
 void CMD_Handle_SetIP(const tsXParsedData *parsedData, U08 useTCP)
 {
     if (parsedData->ParamCount == 4)
@@ -1271,6 +1448,10 @@ void CMD_Handle_SetIP(const tsXParsedData *parsedData, U08 useTCP)
     }
 }
 
+/**
+ * @brief TASK: USB에서 인자 없이 호출하면 RTOS 태스크 상태를 진단 출력한다.
+ * 다른 경로 또는 인자가 있으면 잘못된 인자로 처리한다.
+ */
 void CMD_Handle_TaskList(const tsXParsedData *parsedData, U08 useTCP)
 {
     if (useTCP == COMM_USB && parsedData->ParamCount == 0)
@@ -1286,6 +1467,10 @@ void CMD_Handle_TaskList(const tsXParsedData *parsedData, U08 useTCP)
     }
 }
 
+/**
+ * @brief STACK: USB에서 인자 없이 호출하면 100 ms 대기 후 태스크 스택 상태를 출력한다.
+ * 통신 응답 버퍼 대신 진단 출력 함수를 사용한다.
+ */
 void CMD_Handle_StackSize(const tsXParsedData *parsedData, U08 useTCP)
 {
     if (useTCP == COMM_USB && parsedData->ParamCount == 0)
@@ -1302,6 +1487,10 @@ void CMD_Handle_StackSize(const tsXParsedData *parsedData, U08 useTCP)
     }
 }
 
+/**
+ * @brief 인자 개수가 expectedCount와 같고 모든 타입이 INT이면 true를 반환한다.
+ * NULL은 false이다. 숫자 범위나 의미는 검사하지 않으며 expectedCount는 호출부가 유효하게 지정해야 한다.
+ */
 bool CMD_CheckParamAll_Int(const tsXParsedData *parsedData, int expectedCount)
 {
     if (parsedData == NULL)
@@ -1319,6 +1508,10 @@ bool CMD_CheckParamAll_Int(const tsXParsedData *parsedData, int expectedCount)
     return true;
 }
 
+/**
+ * @brief 인자 개수가 expectedCount와 같고 모든 타입이 FLOAT이면 true를 반환한다.
+ * 정수를 실수로 자동 인정하지 않는다. 값의 범위 검사는 호출부의 책임이다.
+ */
 bool CMD_CheckParamAll_Float(const tsXParsedData *parsedData, int expectedCount)
 {
     if (parsedData == NULL)
@@ -1336,6 +1529,10 @@ bool CMD_CheckParamAll_Float(const tsXParsedData *parsedData, int expectedCount)
     return true;
 }
 
+/**
+ * @brief Core/Module 테이블의 명령명과 도움말 최대 길이로 출력 열 너비를 계산한다.
+ * 현재 unused 보조 함수이며 호출되지 않으면 초기 열 너비를 사용한다.
+ */
 __attribute__((unused)) static void CLI_GetMaxHelpWidth(void)
 {
     int max = 0;
@@ -1382,6 +1579,10 @@ __attribute__((unused)) static void CLI_GetMaxHelpWidth(void)
     gWidth_Help = max + 2; // 여유 공간 2칸 추가
 }
 
+/**
+ * @brief USB의 ?? 명령으로 Core/Module에 등록된 모든 명령과 분류·설명·예제를 출력한다.
+ * 미등록 핸들러는 표시하지 않는다. 다른 통신 경로에서는 출력하지 않는다.
+ */
 void CMD_Handle_Help_All(const tsXParsedData *parsedData, U08 useTCP)
 {
     int i, k = 0;
@@ -1423,6 +1624,10 @@ void CMD_Handle_Help_All(const tsXParsedData *parsedData, U08 useTCP)
     }
 }
 
+/**
+ * @brief USB의 ? 명령으로 CLI_COMMAND_SYSTEM 분류의 등록 명령만 출력한다.
+ * 디버그 명령을 포함한 전체 목록은 ??를 사용한다.
+ */
 void CMD_Handle_Help(const tsXParsedData *parsedData, U08 useTCP)
 {
     U08 k = 0;
@@ -1467,6 +1672,10 @@ void CMD_Handle_Help(const tsXParsedData *parsedData, U08 useTCP)
     }
 }
 
+/**
+ * @brief 파싱된 명령명을 Module → Core 테이블에서 찾아 개별 설명과 예제를 콘솔에 출력한다.
+ * 실행부의 검색 순서와는 다르며 여기서는 핸들러를 실행하지 않는다.
+ */
 void CMD_ShowCommandHelp(const tsXParsedData *parsedData)
 {
     for (int i = 0; i < gModuleCommandCount; i++)

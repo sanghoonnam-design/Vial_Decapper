@@ -27,6 +27,10 @@ typedef struct
     teErrorCode errorCode;
 } tsControlAvailability;
 
+/**
+ * @brief 진단 주기에 Decapper 센서 조합을 검사하고 오류 표시를 갱신한다.
+ * FW_MODE_IDLE 또는 진단 비활성 상태에서는 건너뛴다. 센서 오류 플래그의 실제 정지 연결은 FSM 설정과 구분한다.
+ */
 VOID TASK_Diagnose(void *pvParameters)
 {
     /** @note: USER CODE, Init. Task */
@@ -59,6 +63,9 @@ VOID TASK_Diagnose(void *pvParameters)
     } /*@end FOREVER{}*/
 }
 
+/**
+ * @brief 진단 태스크의 주기 실행을 깨우는 이진 세마포어를 생성한다.
+ */
 int Init_Diagnose(int Index)
 {
     int result = EXIT_SUCCESS;
