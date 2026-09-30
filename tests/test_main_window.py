@@ -32,6 +32,8 @@ class MainWindowTests(unittest.TestCase):
         window.command_client.is_connected = lambda: True
         window.command_client.socket.write = lambda data: payloads.append(bytes(data)) or len(data)
         window._on_connected()
+        window.cr_checkbox.setChecked(True)
+        window.lf_checkbox.setChecked(True)
         commands = ["HOME", "STOP", "PAUSE", "RESUME", "DECAP", "CAP", "ORG",
                     "READY 0", "READY 1", "BGRIP 0", "BGRIP 1", "CGRIP 0", "CGRIP 1",
                     "UDECAP", "UCAP", "LR", "GSTA", "SL", "CD", "PL",
@@ -42,6 +44,39 @@ class MainWindowTests(unittest.TestCase):
                 self.assertIsNotNone(button)
                 button.click()
                 self.assertEqual(payloads[-1], command.encode("ascii") + b"\r\n")
+
+    def test_command_buttons_follow_cr_lf_selection(self):
+        window = MainWindow()
+        self.addCleanup(window.close)
+        payloads = []
+        window.command_client.is_connected = lambda: True
+        window.command_client.socket.write = lambda data: payloads.append(bytes(data)) or len(data)
+        window._on_connected()
+
+        for cr, lf, expected in (
+            (False, False, b"HOME"),
+            (True, False, b"HOME\r"),
+            (False, True, b"HOME\n"),
+            (True, True, b"HOME\r\n"),
+        ):
+            with self.subTest(cr=cr, lf=lf):
+                window.cr_checkbox.setChecked(cr)
+                window.lf_checkbox.setChecked(lf)
+                window.findChild(QPushButton, "motion_home").click()
+                self.assertEqual(payloads[-1], expected)
+
+        window.cr_checkbox.setChecked(False)
+        window.lf_checkbox.setChecked(False)
+        window.findChild(QPushButton, "motion_stop").click()
+        self.assertEqual(payloads[-1], b"STOP")
+        window.speed_input.setValue(35)
+        window.findChild(QPushButton, "speed_apply_button").click()
+        self.assertEqual(payloads[-1], b"SPEED 35")
+        window.move_position_input.setText("-123")
+        window.move_send_button.click()
+        self.assertEqual(payloads[-1], b"MOVE R Z -123")
+        window.rpos_read_button.click()
+        self.assertEqual(payloads[-1], b"RPOS")
 
     def test_speed_control_builds_command(self):
         window = MainWindow()
@@ -69,12 +104,13 @@ class MainWindowTests(unittest.TestCase):
         self.assertIsNone(window.findChild(QPushButton, "motion_spd"))
         self.assertIsNone(window.findChild(QPushButton, "motion_capdecaplr"))
 
-    def test_motion_controls_follow_remaining_connection(self):
+    def test_motion_controls_follow_selected_uart_connection(self):
         window = MainWindow()
         self.addCleanup(window.close)
         stop = window.findChild(QPushButton, "motion_stop")
         self.assertIsNotNone(stop)
         self.assertFalse(stop.isEnabled())
+        window.transport_combo.setCurrentIndex(window.transport_combo.findData("UART"))
         window.serial_client.is_connected = lambda: True
         window._on_uart_connected()
         window._on_disconnected()

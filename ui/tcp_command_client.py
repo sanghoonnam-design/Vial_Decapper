@@ -51,7 +51,12 @@ class TcpCommandClient(QObject):
         except UnicodeEncodeError:
             self.error.emit("Commands must use ASCII characters.")
             return b""
-        self.socket.write(payload)
+        written = self.socket.write(payload)
+        if written != len(payload):
+            self.error.emit(f"TCP write failed or incomplete ({written}/{len(payload)} bytes): {self.socket.errorString()}")
+            self.disconnect_from_host()
+            return b""
+        # Accepted into the local transport buffer; device execution needs an RX response.
         self.sent.emit(payload)
         return payload
 

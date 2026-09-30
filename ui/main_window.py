@@ -39,22 +39,22 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(800, 600)
         self.setStyleSheet(
             """
-            QMainWindow { background: #0a1020; color: #e6edf7; }
+            QMainWindow { background: #202a33; color: #e2e8ec; }
             QWidget#connection_bar {
-                background: #0e1930;
-                border-bottom: 1px solid #223452;
+                background: #131d25;
+                border-bottom: 1px solid #354552;
             }
-            QLabel#app_title { color: #f4f8ff; font-size: 24px; font-weight: 700; }
+            QLabel#app_title { color: #f8fafc; font-size: 24px; font-weight: 700; }
             QLabel#brand_mark {
-                background: #102a47;
-                border: 1px solid #38bdf8;
+                background: #2b4b56;
+                border: 1px solid #86aeb7;
                 border-radius: 10px;
-                color: #67e8f9;
+                color: #dceff2;
                 font-size: 26px;
             }
             QGroupBox {
-                background: #111c31;
-                border: 1px solid #243858;
+                background: #18222b;
+                border: 1px solid #354552;
                 border-radius: 10px;
                 margin-top: 14px;
                 padding: 12px;
@@ -64,49 +64,63 @@ class MainWindow(QMainWindow):
                 subcontrol-origin: margin;
                 left: 12px;
                 padding: 0 6px;
-                color: #7dd3fc;
+                color: #86aeb7;
             }
             QLineEdit, QPlainTextEdit {
-                background: #091323;
-                border: 1px solid #2b4266;
+                background: #111a21;
+                border: 1px solid #354552;
                 border-radius: 6px;
                 padding: 7px;
-                color: #dbeafe;
-                selection-background-color: #2563eb;
+                color: #e2e8ec;
+                selection-background-color: #3d6975;
+            }
+            QLineEdit:focus { border-color: #6f9ca7; }
+            QPlainTextEdit#communication_log {
+                background: #0d151b;
+                color: #d4e1e5;
+                font-family: 'Consolas', 'Courier New', monospace;
             }
             QPushButton {
-                background: #1b3150;
-                border: none;
+                background: #273540;
+                border: 1px solid #4a5d6c;
                 border-radius: 6px;
-                color: #cfe8ff;
+                color: #e2e8ec;
                 font-weight: 600;
-                padding: 10px 16px;
+                padding: 8px 12px;
             }
             QPushButton#connect_button, QPushButton#command_send_button {
-                background: #0284c7;
-                color: #f0f9ff;
+                background: #3d6975;
+                color: #ffffff;
             }
-            QPushButton:hover { background: #27466f; }
+            QPushButton:hover { background: #334653; color: #ffffff; }
             QPushButton#connect_button:hover, QPushButton#command_send_button:hover {
-                background: #0ea5e9;
+                background: #527f89;
             }
-            QSplitter::handle { background: #223452; }
-            QLabel#visual_caption { color: #6b88ad; font-size: 12px; font-weight: 600; }
+            QPushButton:disabled { background: #202a33; color: #68777d; border-color: #354552; }
+            QComboBox, QSpinBox {
+                background: #111a21; color: #e2e8ec;
+                border: 1px solid #354552; border-radius: 5px; padding: 5px 7px;
+            }
+            QComboBox:focus, QSpinBox:focus { border-color: #6f9ca7; }
+            QSplitter::handle { background: #354552; }
+            QLabel#visual_caption { color: #aebdc5; font-size: 12px; font-weight: 600; }
             """
         )
 
         self.command_client = TcpCommandClient(self)
         self.serial_client = SerialCommandClient(self)
+        self._receive_buffers = {"TCP": bytearray(), "UART": bytearray()}
+        self._discarding_receive_line = set()
         self.command_client.connected.connect(self._on_connected)
         self.command_client.disconnected.connect(self._on_disconnected)
-        self.command_client.received.connect(self._log_received)
-        self.command_client.sent.connect(self._log_sent)
-        self.command_client.error.connect(self._log_error)
+        self.command_client.received.connect(lambda data: self._log_received(data, "TCP"))
+        self.command_client.sent.connect(lambda data: self._log_sent(data, "TCP"))
+        self.command_client.error.connect(lambda message: self._log_error(f"[TCP] {message}"))
         self.serial_client.connected.connect(self._on_uart_connected)
         self.serial_client.disconnected.connect(self._on_uart_disconnected)
-        self.serial_client.received.connect(self._log_received)
-        self.serial_client.sent.connect(self._log_sent)
-        self.serial_client.error.connect(self._log_error)
+        self.serial_client.received.connect(lambda data: self._log_received(data, "UART"))
+        self.serial_client.sent.connect(lambda data: self._log_sent(data, "UART"))
+        self.serial_client.error.connect(lambda message: self._log_error(f"[UART] {message}"))
 
         self.setMenuWidget(self._create_connection_bar())
         self.setCentralWidget(self._create_workspace())
@@ -177,23 +191,24 @@ class MainWindow(QMainWindow):
             QGroupBox#input_area QComboBox,
             QGroupBox#input_area QLineEdit,
             QGroupBox#input_area QPushButton { font-size: 14px; }
-            QTabWidget::pane { border: 1px solid #2b4266; border-radius: 6px; }
-            QTabBar::tab { background: #15263e; color: #a9bed8; padding: 8px 12px; }
-            QTabBar::tab:selected { background: #225176; color: #ffffff; }
-            QScrollArea { border: none; background: #111c31; }
-            QWidget#motion_page { background: #111c31; }
-            QSpinBox, QComboBox { background: #091323; color: #dbeafe;
-                border: 1px solid #2b4266; border-radius: 4px; padding: 5px; }
-            QPushButton:disabled { background: #172338; color: #687990; }
-            QPushButton#motion_stop { background: #ac3344; color: white; }
-            QPushButton#motion_stop:disabled { background: #522b37; color: #99727a; }
-            QLabel { color: #b9cce1; }
+            QTabWidget::pane { border: 1px solid #354552; border-radius: 6px; }
+            QTabBar::tab { background: #273540; color: #b7c5cb; padding: 8px 12px; border: 1px solid #354552; }
+            QTabBar::tab:selected { background: #2b4b56; border-color: #6f9ca7; color: #dceff2; }
+            QScrollArea { border: none; background: #18222b; }
+            QWidget#motion_page { background: #18222b; }
+            QSpinBox, QComboBox { background: #111a21; color: #e2e8ec;
+                border: 1px solid #354552; border-radius: 4px; padding: 5px; }
+            QPushButton:disabled { background: #202a33; color: #68777d; border-color: #354552; }
+            QPushButton#motion_stop { background: #8f3f4a; color: white; }
+            QPushButton#motion_stop:hover { background: #aa4b58; }
+            QPushButton#motion_stop:disabled { background: #4a3037; color: #9b7a80; }
+            QLabel { color: #aebdc5; }
             QLabel#move_command_label, QLabel#rpos_command_label {
-                color: #7dd3fc;
+                color: #86aeb7;
                 font-weight: 700;
             }
             QLabel#current_z_position_value {
-                color: #e0f2fe;
+                color: #dceff2;
                 font-size: 22px;
                 font-weight: 700;
             }
@@ -366,7 +381,7 @@ class MainWindow(QMainWindow):
         if sender is None:
             self._log_error("Cannot send: connect TCP/IP or UART first.")
             return
-        sender.send_command(command, True, True)
+        sender.send_command(command, self.cr_checkbox.isChecked(), self.lf_checkbox.isChecked())
 
     def _send_speed(self):
         self._send_motion_command(f"SPEED {self.speed_input.value()}")
@@ -380,6 +395,20 @@ class MainWindow(QMainWindow):
         command_area = QGroupBox("Command")
         command_area.setObjectName("command_area")
         layout = QVBoxLayout(command_area)
+
+        transport_row = QHBoxLayout()
+        transport_row.addWidget(QLabel("전송 경로"))
+        self.transport_combo = QComboBox()
+        self.transport_combo.setObjectName("transport_combo")
+        self.transport_combo.addItem("TCP/IP", "TCP")
+        self.transport_combo.addItem("UART", "UART")
+        self.transport_combo.setToolTip("모든 명령 버튼에 적용됩니다. 연결이 끊겨도 다른 경로로 자동 전환하지 않습니다.")
+        self.transport_combo.currentIndexChanged.connect(self._on_transport_changed)
+        transport_row.addWidget(self.transport_combo)
+        transport_note = QLabel("현재 펌웨어의 TCP 명령은 CR·LF 모두 체크해야 실행됩니다.")
+        transport_note.setWordWrap(True)
+        transport_row.addWidget(transport_note, 1)
+        layout.addLayout(transport_row)
 
         command_row = QHBoxLayout()
 
@@ -411,6 +440,8 @@ class MainWindow(QMainWindow):
         self.communication_log = communication_log
         communication_log.setObjectName("communication_log")
         communication_log.setReadOnly(True)
+        communication_log.setMaximumBlockCount(10000)
+        communication_log.setToolTip("최근 10,000줄을 표시·저장합니다. TX는 전송 버퍼 접수이며, 실행 결과는 RX에서 확인합니다.")
         communication_log.setPlaceholderText("TX / RX communication log")
         layout.addWidget(communication_log)
 
@@ -442,6 +473,7 @@ class MainWindow(QMainWindow):
         ip_address_input = QLineEdit()
         ip_address_input.setObjectName("ip_address_input")
         ip_address_input.setPlaceholderText("IP Address")
+        ip_address_input.setText("192.168.0.")
         ip_address_input.setMaximumWidth(150)
         layout.addWidget(ip_address_input)
 
@@ -539,21 +571,29 @@ class MainWindow(QMainWindow):
         if sender is None:
             self._log_error("Cannot send: connect TCP/IP or UART first.")
             return
-        sender.send_command(f"MOVE {mode} {axis} {position}", True, True)
+        sender.send_command(f"MOVE {mode} {axis} {position}", self.cr_checkbox.isChecked(), self.lf_checkbox.isChecked())
 
     def _send_rpos_command(self) -> None:
         sender = self._active_command_client()
         if sender is None:
             self._log_error("Cannot send: connect TCP/IP or UART first.")
             return
-        sender.send_command("RPOS", True, True)
+        sender.send_command("RPOS", self.cr_checkbox.isChecked(), self.lf_checkbox.isChecked())
 
     def _active_command_client(self):
-        if self.command_client.is_connected():
-            return self.command_client
-        if self.serial_client.is_connected():
-            return self.serial_client
-        return None
+        client = self.command_client if self.transport_combo.currentData() == "TCP" else self.serial_client
+        return client if client.is_connected() else None
+
+    def _on_transport_changed(self, _index):
+        self.current_z_position_value.setText("--")
+        self._set_command_controls_enabled(self._active_command_client() is not None)
+        self._append_log(f"전송 경로: {self.transport_combo.currentText()}")
+
+    def _reset_receive_state(self, source):
+        self._receive_buffers[source].clear()
+        self._discarding_receive_line.discard(source)
+        if self.transport_combo.currentData() == source:
+            self.current_z_position_value.setText("--")
 
     def _toggle_uart_connection(self) -> None:
         if self.serial_client.is_connected():
@@ -568,39 +608,65 @@ class MainWindow(QMainWindow):
 
     def _on_connected(self) -> None:
         self.connect_button.setText("Disconnect")
-        self._set_command_controls_enabled(True)
+        self._reset_receive_state("TCP")
+        if self.transport_combo.currentData() == "TCP":
+            self._set_command_controls_enabled(True)
         if self.serial_client.is_connected():
             self.uart_connect_button.setText("UART Disconnect")
-        self._append_log("Connected.")
+        self._append_log("[TCP] Connected.")
 
     def _on_disconnected(self) -> None:
         self.connect_button.setText("Connect")
-        self._set_command_controls_enabled(self.serial_client.is_connected())
+        self._reset_receive_state("TCP")
+        if self.transport_combo.currentData() == "TCP":
+            self._set_command_controls_enabled(False)
         if not self.serial_client.is_connected():
             self.uart_connect_button.setText("UART Connect")
-        self._append_log("Disconnected.")
+        self._append_log("[TCP] Disconnected.")
 
     def _on_uart_connected(self) -> None:
         self.uart_connect_button.setText("UART Disconnect")
-        self._set_command_controls_enabled(True)
+        self._reset_receive_state("UART")
+        if self.transport_combo.currentData() == "UART":
+            self._set_command_controls_enabled(True)
         self._append_log("UART connected.")
 
     def _on_uart_disconnected(self) -> None:
         self.uart_connect_button.setText("UART Connect")
-        if not self.command_client.is_connected():
+        self._reset_receive_state("UART")
+        if self.transport_combo.currentData() == "UART":
             self._set_command_controls_enabled(False)
         self._append_log("UART disconnected.")
 
-    def _log_sent(self, payload: bytes) -> None:
-        self._append_log(f"TX: {self._render_bytes(payload)}")
+    def _log_sent(self, payload: bytes, source="TCP") -> None:
+        self._append_log(f"[{source}] TX: {self._render_bytes(payload)}")
 
-    def _log_received(self, payload: bytes) -> None:
-        text = self._clean_received_text(payload)
-        if text:
-            match = re.search(r"\bRPOS\s*[, ]\s*(-?\d+)", text, re.IGNORECASE)
-            if match:
-                self.current_z_position_value.setText(match.group(1))
-            self._append_log(f"RX: {text}")
+    def _log_received(self, payload: bytes, source="TCP") -> None:
+        # A readyRead event can contain part of a line or several lines.
+        # Keep bytes until LF so split UTF-8 and CRLF sequences stay intact.
+        parts = payload.split(b"\n")
+        buffer = self._receive_buffers[source]
+        for index, part in enumerate(parts):
+            if source not in self._discarding_receive_line:
+                if len(buffer) + len(part) > 65536:
+                    buffer.clear()
+                    self._discarding_receive_line.add(source)
+                    self._log_error(f"[{source}] RX line exceeded 64 KiB; discarding until newline.")
+                else:
+                    buffer.extend(part)
+            if index == len(parts) - 1:
+                break
+            if source in self._discarding_receive_line:
+                self._discarding_receive_line.discard(source)
+                buffer.clear()
+                continue
+            text = self._clean_received_text(bytes(buffer))
+            buffer.clear()
+            for line in text.splitlines():
+                match = re.fullmatch(r"RPOS\s*[, ]\s*([+-]?\d+)\s*,?", line, re.IGNORECASE)
+                if match and source == self.transport_combo.currentData():
+                    self.current_z_position_value.setText(match.group(1))
+                self._append_log(f"[{source}] RX: {line}")
 
     def _log_error(self, message: str) -> None:
         self._append_log(f"ERROR: {message}")
@@ -631,7 +697,10 @@ class MainWindow(QMainWindow):
         default_name = f"vial_decapper_log_{datetime.now():%Y%m%d_%H%M%S}.txt"
         filename, _ = QFileDialog.getSaveFileName(self, "Save communication log", default_name, "Text files (*.txt)")
         if filename:
-            Path(filename).write_text(self.communication_log.toPlainText(), encoding="utf-8")
+            try:
+                Path(filename).write_text(self.communication_log.toPlainText(), encoding="utf-8")
+            except OSError as error:
+                self._log_error(f"Log save failed: {error}")
 
     def _clear_communication_log(self) -> None:
         self.communication_log.clear()

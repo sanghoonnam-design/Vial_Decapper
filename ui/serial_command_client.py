@@ -48,7 +48,12 @@ class SerialCommandClient(QObject):
             payload += b"\r"
         if append_lf:
             payload += b"\n"
-        self.serial.write(payload)
+        written = self.serial.write(payload)
+        if written != len(payload):
+            self.error.emit(f"UART write failed or incomplete ({written}/{len(payload)} bytes): {self.serial.errorString()}")
+            self.close()
+            return b""
+        # Accepted into the local transport buffer; device execution needs an RX response.
         self.sent.emit(payload)
         return payload
 
@@ -56,5 +61,8 @@ class SerialCommandClient(QObject):
         self.received.emit(bytes(self.serial.readAll()))
 
     def _on_error(self, _error: QSerialPort.SerialPortError) -> None:
-        if self.serial.errorString():
-            self.error.emit(self.serial.errorString())
+        if _error == QSerialPort.SerialPortError.NoError:
+            return
+        self.error.emit(self.serial.errorString())
+        if _error == QSerialPort.SerialPortError.ResourceError:
+            self.close()

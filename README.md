@@ -18,6 +18,29 @@ Geometry lives in `ui/device_model.py`; `ui/device_model_view.py` renders it wit
 PySide6 alone, without an additional 3D engine. The lightweight renderer sorts
 faces by depth, so intersecting parts may show minor overlap artifacts at some angles.
 
+## Communication controls
+
+- Select `TCP/IP` or `UART` in the command panel before sending commands. All
+  command buttons use that selection and are enabled only when the selected
+  connection is open. Disconnecting does not switch to the other connection.
+- CR and LF start checked. Each checkbox appends only its selected character
+  to every command, including Teaching & Motion buttons. The current firmware's
+  TCP command parser requires both CR and LF to execute a command.
+- TX means the local transport accepted the bytes, not that the device executed
+  the command. Check RX for the device response. Logs identify the transport.
+- Complete newline-terminated responses are processed in order. Position values
+  are updated only from the selected transport; disconnecting clears the value.
+- The communication log displays and saves the most recent 10,000 lines.
+
+## Tests
+
+```powershell
+.venv\Scripts\python.exe -m unittest discover -s tests -v
+```
+
+Tests include a local TCP loopback server and simulated UART writes. They do not
+connect to or move a physical device.
+
 ## Windows setup and run
 
 ```powershell
