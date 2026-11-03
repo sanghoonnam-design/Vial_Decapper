@@ -7,9 +7,8 @@ not manufacturing dimensions or machine travel limits.
 from math import cos, sin, tau
 
 
-def build_device_mesh(carriage_position=0.0):
+def build_device_mesh(carriage_position=0.0, cap_held=None):
     """Position 0 is under the head; 1 is forward near the fixed sensor."""
-    travel = -65 * max(0.0, min(1.0, carriage_position))
     faces = []
 
     def box(center, size, color):
@@ -53,11 +52,12 @@ def build_device_mesh(carriage_position=0.0):
             box((x, y, 26), (4, 4, 3), dark)
     cylinder((0, 133, 26), 4, 224, gold)
     # The complete lower holder travels on the base rails independently of the head.
-    holder_z = -37 + travel
-    box((0, 29, holder_z), (58, 10, 42), silver)
-    box((0, 82, holder_z), (40, 96, 34), dark)
-    box((0, 134, holder_z), (48, 8, 42), silver)
-    cylinder((0, 141, holder_z), 13, 6, dark)
+    if carriage_position is not None:
+        holder_z = -37 - 65 * max(0.0, min(1.0, carriage_position))
+        box((0, 29, holder_z), (58, 10, 42), silver)
+        box((0, 82, holder_z), (40, 96, 34), dark)
+        box((0, 134, holder_z), (48, 8, 42), silver)
+        cylinder((0, 141, holder_z), 13, 6, dark)
     # Moving carriage and the projecting head support.
     box((0, 192, 24), (82, 70, 14), silver)
     box((0, 208, -5), (76, 14, 75), silver)
@@ -75,6 +75,8 @@ def build_device_mesh(carriage_position=0.0):
     cylinder((0, 229, -37), 18, 33, steel)
     cylinder((0, 207, -37), 15, 12, gold)
     cylinder((0, 196, -37), 10, 10, dark)
+    if cap_held:
+        cylinder((0, 187, -37), 11, 7, '#48cbbb')
     box((0, 306, 28), (38, 76, 38), dark)
     box((0, 268, 28), (44, 8, 44), silver)
     for x in (-12, -4, 4, 12):

@@ -22,61 +22,52 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 from ui.main_window import MainWindow
+from tests.device_fixture import ready
+from PySide6.QtWidgets import QMessageBox
 
 
 class MainWindowTests(unittest.TestCase):
     def test_motion_buttons_send_firmware_commands_with_crlf(self):
         window = MainWindow()
         self.addCleanup(window.close)
-        payloads = []
-        window.command_client.is_connected = lambda: True
-        window.command_client.socket.write = lambda data: payloads.append(bytes(data)) or len(data)
-        window._on_connected()
-        window.cr_checkbox.setChecked(True)
-        window.lf_checkbox.setChecked(True)
-        commands = ["HOME", "STOP", "PAUSE", "RESUME", "DECAP", "CAP", "ORG",
-                    "READY 0", "READY 1", "BGRIP 0", "BGRIP 1", "CGRIP 0", "CGRIP 1",
-                    "UDECAP", "UCAP", "LR", "GSTA", "SL", "CD", "PL",
-                    "SPEED", "SAVE"]
+        payloads=[]
+        window.command_client.socket.write=lambda data:payloads.append(bytes(data)) or len(data)
+        commands=["HOME","STOP","PAUSE","RESUME","DECAP","CAP","ORG","READY 0","READY 1",
+                  "BGRIP 0","BGRIP 1","CGRIP 0","CGRIP 1","UDECAP","UCAP","LR","GSTA","SL","CD","PL","SPEED","SAVE"]
         for command in commands:
             with self.subTest(command=command):
-                button = window.findChild(QPushButton, "motion_" + command.replace(" ", "_").lower())
+                ready(window,extended=True)
+                if command in {"PAUSE","RESUME"}:
+                    paused=1 if command=="RESUME" else 0
+                    window._log_received(f"GSTATE 1,1,0,{paused},3,0,E0000,1,1\r\n".encode())
+                payloads.clear()
+                button=window.findChild(QPushButton,"motion_"+command.replace(" ","_").lower())
                 self.assertIsNotNone(button)
-                button.click()
-                self.assertEqual(payloads[-1], command.encode("ascii") + b"\r\n")
+                self.assertTrue(button.isEnabled())
+                with patch("ui.device_controls.QMessageBox.question",return_value=QMessageBox.StandardButton.Yes):
+                    button.click()
+                actual="LR 100" if command=="LR" else "SAVE 1" if command=="SAVE" else command
+                self.assertEqual(payloads,[actual.encode()+b"\r\n"])
 
     def test_command_buttons_follow_cr_lf_selection(self):
-        window = MainWindow()
+        window=MainWindow()
         self.addCleanup(window.close)
-        payloads = []
-        window.command_client.is_connected = lambda: True
-        window.command_client.socket.write = lambda data: payloads.append(bytes(data)) or len(data)
-        window._on_connected()
-
-        for cr, lf, expected in (
-            (False, False, b"HOME"),
-            (True, False, b"HOME\r"),
-            (False, True, b"HOME\n"),
-            (True, True, b"HOME\r\n"),
-        ):
-            with self.subTest(cr=cr, lf=lf):
-                window.cr_checkbox.setChecked(cr)
-                window.lf_checkbox.setChecked(lf)
-                window.findChild(QPushButton, "motion_home").click()
-                self.assertEqual(payloads[-1], expected)
-
-        window.cr_checkbox.setChecked(False)
-        window.lf_checkbox.setChecked(False)
-        window.findChild(QPushButton, "motion_stop").click()
-        self.assertEqual(payloads[-1], b"STOP")
-        window.speed_input.setValue(35)
-        window.findChild(QPushButton, "speed_apply_button").click()
-        self.assertEqual(payloads[-1], b"SPEED 35")
-        window.move_position_input.setText("-123")
-        window.move_send_button.click()
-        self.assertEqual(payloads[-1], b"MOVE R Z -123")
-        window.rpos_read_button.click()
-        self.assertEqual(payloads[-1], b"RPOS")
+        payloads=[]
+        window.command_client.socket.write=lambda data:payloads.append(bytes(data)) or len(data)
+        for cr,lf,suffix in ((False,False,b""),(True,False,b"\r"),(False,True,b"\n"),(True,True,b"\r\n")):
+            for command,action in (("HOME",lambda:window.findChild(QPushButton,"motion_home").click()),
+                   ("STOP",lambda:window.findChild(QPushButton,"motion_stop").click()),
+                   ("SPEED 35",window._send_speed),("MOVE R Z -123",window._send_teaching_point),
+                   ("RPOS",window._send_rpos_command)):
+                with self.subTest(cr=cr,lf=lf,command=command):
+                    window.cr_checkbox.setChecked(True);window.lf_checkbox.setChecked(True)
+                    ready(window)
+                    payloads.clear()
+                    window.cr_checkbox.setChecked(cr);window.lf_checkbox.setChecked(lf)
+                    window.speed_input.setValue(35)
+                    window.move_position_input.setText("-123")
+                    action()
+                    self.assertEqual(payloads,[command.encode()+suffix])
 
     def test_speed_control_builds_command(self):
         window = MainWindow()
@@ -84,7 +75,8 @@ class MainWindowTests(unittest.TestCase):
         payloads = []
         window.command_client.is_connected = lambda: True
         window.command_client.socket.write = lambda data: payloads.append(bytes(data)) or len(data)
-        window._on_connected()
+        ready(window)
+        payloads.clear()
         window.speed_input.setValue(35)
         window.findChild(QPushButton, "speed_apply_button").click()
         self.assertEqual(payloads[-1], b"SPEED 35\r\n")
@@ -96,7 +88,7 @@ class MainWindowTests(unittest.TestCase):
             [window.motion_tabs.tabText(i) for i in range(window.motion_tabs.count())],
             ["Test", "Teaching", "Debug", "Status"],
         )
-        status_page = window.motion_tabs.widget(3).widget()
+        status_page = window.motion_tabs.widget(3)
         status_buttons = status_page.findChildren(QPushButton)
         self.assertEqual([button.text() for button in status_buttons], ["SL", "CD", "PL"])
         self.assertIsNone(window.findChild(QPushButton, "pl_apply_button"))
@@ -129,6 +121,8 @@ class MainWindowTests(unittest.TestCase):
         payloads = []
         window.command_client.is_connected = lambda: True
         window.command_client.socket.write = lambda data: payloads.append(bytes(data)) or len(data)
+        ready(window)
+        payloads.clear()
         for invalid in ("--3", "+-3", "2147483648", "-2147483649", "12.5"):
             window.move_position_input.setText(invalid)
             window._send_teaching_point()
@@ -300,7 +294,6 @@ class MainWindowTests(unittest.TestCase):
 
     def test_teaching_point_send_builds_move_command(self) -> None:
         window = MainWindow()
-        window._on_connected()
         window.findChild(QComboBox, "move_mode_combo").setCurrentText("ABS")
         window.findChild(QComboBox, "move_axis_combo").setCurrentText("R")
         window.findChild(QLineEdit, "move_position_input").setText("250")
@@ -309,7 +302,9 @@ class MainWindowTests(unittest.TestCase):
         window.command_client.is_connected = lambda: True
         window.command_client.send_command = lambda command, append_cr, append_lf: sent.append(
             (command, append_cr, append_lf)
-        )
+        ) or b"sent"
+        ready(window)
+        sent.clear()
         window._send_teaching_point()
 
         self.assertEqual(sent, [("MOVE A R 250", True, True)])
@@ -345,9 +340,10 @@ class MainWindowTests(unittest.TestCase):
         window = MainWindow()
         window.command_client.is_connected = lambda: True
         sent = []
-        window.command_client.send_command = lambda *args: sent.append(args)
+        window.command_client.send_command = lambda *args: sent.append(args) or b"sent"
 
-        window._on_connected()
+        ready(window)
+        sent.clear()
         window._send_rpos_command()
         window._log_received(b"RPOS 12345\r\n")
 
@@ -382,7 +378,7 @@ class MainWindowTests(unittest.TestCase):
         self.assertLessEqual(command_input.height(), 40)
         self.assertIsNotNone(communication_log)
         self.assertTrue(communication_log.isReadOnly())
-        self.assertLessEqual(abs(input_area.height() - command_area.height()), 30)
+        self.assertGreater(input_area.height(), command_area.height())
         self.assertEqual(right_splitter.orientation(), Qt.Orientation.Vertical)
 
     def test_workspace_uses_equal_columns_with_labeled_boundaries(self) -> None:

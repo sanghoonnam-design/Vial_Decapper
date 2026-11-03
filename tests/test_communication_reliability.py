@@ -50,6 +50,7 @@ class CommunicationReliabilityTests(unittest.TestCase):
         w.serial_client.is_connected = lambda: True
         w.serial_client.serial.write = lambda data: written.append(bytes(data)) or len(data)
         w.transport_combo.setCurrentIndex(w.transport_combo.findData("UART"))
+        w._on_uart_connected()
         for cr, lf, expected in (
             (False, False, b"STOP"), (True, False, b"STOP\r"),
             (False, True, b"STOP\n"), (True, True, b"STOP\r\n"),
@@ -80,6 +81,14 @@ class CommunicationReliabilityTests(unittest.TestCase):
         wait_until(lambda: server.hasPendingConnections() and w.command_client.is_connected())
         peer = server.nextPendingConnection()
         self.addCleanup(peer.abort)
+        for command,response in ((b"VERSION\r\n",b"VERSION 1.0\r\n"),
+                (b"GSTA\r\n",b"GSTA 0,1,1,0,E0000,\r\n"),
+                (b"SPEED\r\n",b"SPEED SPEED 100\r\n"),
+                (b"PCONFIG\r\n",b"PCONFIG UNSUPPORTED\r\n")):
+            wait_until(lambda:peer.bytesAvailable()>=len(command))
+            self.assertEqual(bytes(peer.readAll()),command)
+            peer.write(response);peer.flush()
+        wait_until(lambda:w.sessions["TCP"].pending is None)
         w.cr_checkbox.setChecked(True)
         w.lf_checkbox.setChecked(True)
         w.rpos_read_button.click()
@@ -160,6 +169,7 @@ class CommunicationReliabilityTests(unittest.TestCase):
         w.serial_client.serial.write = lambda data: uart.append(bytes(data)) or len(data)
         w._on_connected()
         w._on_uart_connected()
+        tcp.clear(); uart.clear()
         selector.setCurrentIndex(selector.findData("UART"))
         w.findChild(QPushButton, "motion_stop").click()
         self.assertEqual(uart, [b"STOP\r\n"])

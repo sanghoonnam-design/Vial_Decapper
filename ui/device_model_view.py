@@ -17,6 +17,8 @@ class DeviceModelView(QWidget):
         self.setCursor(Qt.CursorShape.OpenHandCursor)
         self.setToolTip('드래그: 회전 · 휠: 확대/축소 · 더블클릭: 기본 시점')
         self._faces = build_device_mesh()
+        self._preview_position = 0
+        self._live_state = (False, None, None)
         self._last_position = None
         self.reset_view()
 
@@ -26,7 +28,18 @@ class DeviceModelView(QWidget):
 
     def set_carriage_position(self, percent):
         """Change only the illustrative carriage; this never sends device commands."""
-        self._faces = build_device_mesh(percent / 100)
+        self._preview_position = percent
+        if not self._live_state[0]:
+            self._faces = build_device_mesh(percent / 100)
+            self.update()
+
+    def set_live_state(self, enabled, position, cap):
+        state = (enabled, position, cap)
+        if self._live_state == state:
+            return
+        self._live_state = state
+        carriage = {"Forward": 1.0, "Back": 0.0}.get(position) if enabled else self._preview_position / 100
+        self._faces = build_device_mesh(carriage, cap if enabled else None)
         self.update()
 
     def _rotate(self, point):
