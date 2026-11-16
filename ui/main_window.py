@@ -1,6 +1,7 @@
 from datetime import datetime
 from pathlib import Path
 import re
+import ipaddress
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QFont
@@ -10,12 +11,12 @@ from PySide6.QtWidgets import (
     QFileDialog,
     QGroupBox,
     QHBoxLayout,
+    QGridLayout,
     QCheckBox,
     QComboBox,
     QLabel,
     QLineEdit,
     QMainWindow,
-    QMessageBox,
     QPlainTextEdit,
     QPushButton,
     QSplitter,
@@ -31,103 +32,31 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtSerialPort import QSerialPortInfo
 
+from ui.command_wire import ResponseStream
 from ui.device_controls import DeviceControls
-from ui.device_session import DeviceSession, PARAMETERS
+from ui.device_session import DeviceSession, PARAMETERS, TEACH_OFFSETS
 from ui.serial_command_client import SerialCommandClient
 from ui.device_model_view import DeviceModelView
 from ui.tcp_command_client import TcpCommandClient
+from ui.longrun_panel import LongrunPanel, MODULE_PRESETS
+from ui.position_actions import PositionActions
+from ui.theme import WINDOW_STYLE
 
 
 class MainWindow(DeviceControls, QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle("Vial Decapper")
-        self.setMinimumSize(1000, 720)
-        self.setStyleSheet(
-            """
-            QMainWindow { background: #202a33; color: #e2e8ec; }
-            QLabel, QCheckBox { color: #aebdc5; }
-            QWidget#connection_bar {
-                background: #131d25;
-                border-bottom: 1px solid #354552;
-            }
-            QLabel#app_title { color: #f8fafc; font-size: 24px; font-weight: 700; }
-            QLabel#brand_mark {
-                background: #2b4b56;
-                border: 1px solid #86aeb7;
-                border-radius: 10px;
-                color: #dceff2;
-                font-size: 26px;
-            }
-            QGroupBox {
-                background: #18222b;
-                border: 1px solid #354552;
-                border-radius: 10px;
-                margin-top: 14px;
-                padding: 12px;
-                font-weight: 600;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 12px;
-                padding: 0 6px;
-                color: #86aeb7;
-            }
-            QLineEdit, QPlainTextEdit {
-                background: #111a21;
-                border: 1px solid #354552;
-                border-radius: 6px;
-                padding: 7px;
-                color: #e2e8ec;
-                selection-background-color: #3d6975;
-            }
-            QLineEdit:focus { border-color: #6f9ca7; }
-            QPlainTextEdit#communication_log {
-                background: #0d151b;
-                color: #d4e1e5;
-                font-family: 'Consolas', 'Courier New', monospace;
-            }
-            QPushButton {
-                background: #273540;
-                border: 1px solid #4a5d6c;
-                border-radius: 6px;
-                color: #e2e8ec;
-                font-weight: 600;
-                padding: 8px 12px;
-            }
-            QPushButton#connect_button, QPushButton#command_send_button {
-                background: #3d6975;
-                color: #ffffff;
-            }
-            QPushButton:hover { background: #334653; color: #ffffff; }
-            QPushButton#connect_button:hover, QPushButton#command_send_button:hover {
-                background: #527f89;
-            }
-            QPushButton:disabled { background: #202a33; color: #68777d; border-color: #354552; }
-            QComboBox, QSpinBox {
-                background: #111a21; color: #e2e8ec;
-                border: 1px solid #354552; border-radius: 5px; padding: 5px 7px;
-            }
-            QComboBox:focus, QSpinBox:focus { border-color: #6f9ca7; }
-            QTableWidget#diagnostic_table {
-                background: #111a21; alternate-background-color: #19262f;
-                color: #e2e8ec; gridline-color: #273742;
-                border: 1px solid #354552; border-radius: 5px;
-                selection-background-color: #3d6975;
-            }
-            QTableWidget#diagnostic_table QHeaderView::section {
-                background: #273540; color: #bcd8df; padding: 3px 7px;
-                border: 0; border-bottom: 1px solid #354552;
-            }
-            QSplitter::handle { background: #354552; }
-            QLabel#visual_caption { color: #aebdc5; font-size: 12px; font-weight: 600; }
-            """
-        )
+        self.setMinimumSize(1000, 820)
+        self.setStyleSheet(WINDOW_STYLE)
 
         self.command_client = TcpCommandClient(self)
         self.serial_client = SerialCommandClient(self)
-        self._receive_buffers = {"TCP": bytearray(), "UART": bytearray()}
-        self._discarding_receive_line = set()
+        self._responses = {
+            source: ResponseStream(lambda source=source: self._log_error(
+                f"[{source}] RX line exceeded 64 KiB; discarding until newline."))
+            for source in ("TCP", "UART")
+        }
         self.command_client.connected.connect(self._on_connected)
         self.command_client.disconnected.connect(self._on_disconnected)
         self.command_client.received.connect(lambda data: self._log_received(data, "TCP"))
@@ -144,9 +73,13 @@ class MainWindow(DeviceControls, QMainWindow):
                                   report=lambda message, source=source: self._log_error(f"[{source}] {message}"))
             for source in ("TCP", "UART")
         }
+        self.position_actions = {source: PositionActions(session,
+            report=lambda message, source=source: self._append_log(f"[{source}] {message}"))
+            for source, session in self.sessions.items()}
         self._primed_routes = set()
         self._displayed_speed = None
         self._displayed_parameter = None
+        self._teaching_read = None
         self.setMenuWidget(self._create_connection_bar())
         self.setCentralWidget(self._create_workspace())
         self.session_timer = QTimer(self)
@@ -164,7 +97,8 @@ class MainWindow(DeviceControls, QMainWindow):
         separator = QFrame()
         separator.setObjectName("connection_separator")
         separator.setFrameShape(QFrame.Shape.HLine)
-        separator.setFrameShadow(QFrame.Shadow.Sunken)
+        separator.setFrameShadow(QFrame.Shadow.Plain)
+        separator.setFixedHeight(1)
         layout.addWidget(separator)
 
         content_splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -195,7 +129,7 @@ class MainWindow(DeviceControls, QMainWindow):
         self.live_model_label.hide()
         visual_layout.addWidget(self.live_model_label)
 
-        visual_caption = QLabel("간이 3D 모델 · 실제 치수와 다를 수 있습니다\n드래그: 회전 · 휠: 확대 · 더블클릭: 초기화")
+        visual_caption = QLabel("간이 3D 모델 · 실제 치수와 다를 수 있습니다")
         visual_caption.setWordWrap(True)
         visual_caption.setObjectName("visual_caption")
         visual_caption.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -226,56 +160,33 @@ class MainWindow(DeviceControls, QMainWindow):
     def _create_teaching_point_area(self) -> QWidget:
         input_area = QGroupBox("Teaching && Motion")
         input_area.setObjectName("input_area")
-        input_area.setStyleSheet("""
-            QGroupBox#input_area { padding: 6px; }
-            QGroupBox#input_area QLabel,
-            QGroupBox#input_area QComboBox,
-            QGroupBox#input_area QLineEdit,
-            QGroupBox#input_area QPushButton { font-size: 13px; }
-            QGroupBox#input_area QPushButton { padding: 4px 9px; }
-            QTabWidget::pane { border: 1px solid #354552; border-radius: 6px; }
-            QTabBar::tab { background: #273540; color: #b7c5cb; padding: 5px 12px; border: 1px solid #354552; }
-            QTabBar::tab:selected { background: #2b4b56; border-color: #6f9ca7; color: #dceff2; }
-            QWidget#motion_page { background: #18222b; }
-            QSpinBox, QComboBox { background: #111a21; color: #e2e8ec;
-                border: 1px solid #354552; border-radius: 4px; padding: 5px; }
-            QPushButton:disabled { background: #202a33; color: #68777d; border-color: #354552; }
-            QPushButton#motion_stop { background: #8f3f4a; color: white; }
-            QPushButton#motion_stop:hover { background: #aa4b58; }
-            QPushButton#motion_stop:disabled { background: #4a3037; color: #9b7a80; }
-            QLabel { color: #aebdc5; }
-            QLabel#move_command_label, QLabel#rpos_command_label {
-                color: #86aeb7;
-                font-weight: 700;
-            }
-            QLabel#current_z_position_value {
-                color: #dceff2;
-                font-size: 22px;
-                font-weight: 700;
-            }
-        """)
         outer = QVBoxLayout(input_area)
         outer.setContentsMargins(8, 16, 8, 8)
         outer.setSpacing(4)
         self.motion_buttons = []
         self.device_state_label = QLabel("연결 후 장비 상태를 확인합니다.")
+        self.device_state_label.setObjectName("device_state")
         self.device_state_label.setWordWrap(False)
         self.device_state_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
-        self.device_state_label.setFont(QFont("Segoe UI", 10))
-        self.device_state_label.setStyleSheet("font-size: 11px; color: #8fa7b3;")
+        self.device_state_label.setMinimumHeight(24)
         outer.addWidget(self.device_state_label)
-        self.device_detail_label = self._compact_label("")
-        query_row = QHBoxLayout()
-        for title, name, command in (("F/W", "device_version", "VERSION"),
-                ("상태", "device_state", "GSTA"), ("오류 상세", "device_error", "GERD"),
+        self.device_detail_label = QLabel("")
+        self.device_detail_label.setObjectName("device_fault")
+        self.device_detail_label.setTextFormat(Qt.TextFormat.PlainText)
+        self.device_detail_label.setWordWrap(True)
+        self.device_detail_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Minimum)
+        outer.addWidget(self.device_detail_label)
+        controls = QHBoxLayout()
+        controls.setSpacing(5)
+        for title, command in (("정지 · STOP", "STOP"), ("일시정지", "PAUSE"), ("재개", "RESUME")):
+            button = self._motion_button(title, command)
+            button.setProperty("danger", command == "STOP")
+            controls.addWidget(button, 2 if command == "STOP" else 1)
+        for title, name, command in (("오류 상세", "device_error", "GERD"),
                 ("오류 해제", "device_clear", "CLR")):
             button = self._action_button(title, name, lambda checked=False, command=command: self._send_motion_command(command))
             button.setProperty("device_command", command)
-            query_row.addWidget(button)
-        outer.addLayout(query_row)
-        controls = QHBoxLayout()
-        for title, command in (("정지 · STOP", "STOP"), ("일시정지", "PAUSE"), ("재개", "RESUME")):
-            controls.addWidget(self._motion_button(title, command))
+            controls.addWidget(button, 1)
         outer.addLayout(controls)
         self.motion_tabs = QTabWidget()
         self.motion_tabs.setObjectName("motion_tabs")
@@ -295,30 +206,75 @@ class MainWindow(DeviceControls, QMainWindow):
             row = QHBoxLayout()
             row.addWidget(QLabel(title))
             for label, command in commands:
-                row.addWidget(self._motion_button(label, command))
+                button = self._motion_button(label, command)
+                if len(commands) > 2:
+                    button.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+                row.addWidget(button)
             rows.addLayout(row)
 
         automatic = page("Test")
-        command_row(automatic, "원점", (("홈 찾기 · HOME", "HOME"), ("원위치 · ORG", "ORG")))
-        command_row(automatic, "자동", (("캡 열기 · DECAP", "DECAP"), ("캡 닫기 · CAP", "CAP")))
-        speed_row = QHBoxLayout()
-        speed_row.addWidget(QLabel("속도"))
+        automatic.setSpacing(2)
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(4)
+        grid.setVerticalSpacing(2)
+        grid.setColumnMinimumWidth(0, 58)
+        for column in range(1, 5):
+            grid.setColumnStretch(column, 1)
+        automatic.addLayout(grid)
+
+        def test_button(button):
+            button.setFixedHeight(30)
+            button.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+            button.setStyleSheet("font-size:12px; padding:3px 4px;")
+            return button
+
+        def test_row(index, title, commands):
+            grid.addWidget(QLabel(title), index, 0)
+            for column, (caption, command) in enumerate(commands, 1):
+                button = test_button(self._motion_button(caption, command))
+                button.setToolTip({"HOME": "홈 찾기 · HOME", "ORG": "원위치 · ORG",
+                                   "DECAP": "캡 열기 · DECAP", "CAP": "캡 닫기 · CAP"}.get(command, command))
+                grid.addWidget(button, index, column)
+
+        test_row(0, "축 이동",
+                    (("Y Forward", "READY 0"), ("Y Backward", "READY 1")))
+        for column, (caption, name, offset) in enumerate(
+                (("원점 이동", "axis_origin", None), ("CAP UP", "axis_cap_up", 16),
+                 ("CAP SIDE", "axis_cap_side", 17)), 1):
+            button = self._action_button(caption, name,
+                lambda checked=False, offset=offset: self._start_position_action(offset))
+            button.setProperty("position_action", True)
+            button.setToolTip("현재 좌표계에서 Z=0 후 R=0 이동 · HOME 탐색 없음" if offset is None
+                              else "F/W 설정 좌표를 읽어 Z축 절대이동 · 설정/EEPROM 변경 없음")
+            grid.addWidget(test_button(button), 1, column)
+        test_row(2, "그리퍼",
+                    (("바디 ON", "BGRIP 1"), ("바디 OFF", "BGRIP 0"),
+                     ("캡 ON", "CGRIP 1"), ("캡 OFF", "CGRIP 0")))
+        grid.addWidget(QLabel("속도"), 3, 0)
         self.speed_input = QSpinBox()
         self.speed_input.setObjectName("speed_input")
         self.speed_input.setRange(1, 100)
         self.speed_input.setValue(100)
         self.speed_input.setSuffix(" %")
         self.speed_input.setToolTip("설정할 속도 비율입니다. 적용을 눌러 전송합니다.")
-        speed_row.addWidget(self.speed_input)
-        speed_row.addWidget(self._motion_button("조회", "SPEED"))
-        speed_row.addWidget(self._action_button("적용", "speed_apply_button", self._send_speed))
-        automatic.addLayout(speed_row)
-        command_row(automatic, "상태", (("상태 조회 · GSTA", "GSTA"),))
+        self.speed_input.setFixedHeight(30)
+        self.speed_input.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+        grid.addWidget(self.speed_input, 3, 1)
+        grid.addWidget(test_button(self._motion_button("조회", "SPEED")), 3, 2)
+        grid.addWidget(test_button(self._action_button("적용", "speed_apply_button", self._send_speed)), 3, 3)
+        grid.setRowMinimumHeight(4, 12)
+        test_row(5, "유닛 시험", (("UDECAP", "UDECAP"), ("UCAP", "UCAP")))
+        grid.addWidget(test_button(self._motion_button("센서 조회", "GSENSOR")), 6, 1)
+        self.sensor_status_label = self._compact_label("센서 상태: 확인 안 됨")
+        grid.addWidget(self.sensor_status_label, 6, 2, 1, 3)
+        grid.addWidget(test_button(self._motion_button("상태 조회", "GSTA")), 7, 1)
+        self.grip_status_label = self._compact_label("캡 / 바이알: 확인 안 됨")
+        grid.addWidget(self.grip_status_label, 7, 2, 1, 3)
+        test_row(8, "자동", (("DECAP", "DECAP"), ("CAP", "CAP"), ("HOME", "HOME"), ("ORG", "ORG")))
         self.auto_condition_label = self._compact_label("자동 운전 조건: 확인 안 됨")
         self.operation_label = self._compact_label("최근 동작: --")
         automatic.addWidget(self.auto_condition_label)
         automatic.addWidget(self.operation_label)
-        automatic.addWidget(self.device_detail_label)
         automatic.addStretch()
 
         layout = page("Teaching")
@@ -382,7 +338,7 @@ class MainWindow(DeviceControls, QMainWindow):
         rpos_row.addWidget(rpos_button)
         teach_row = QHBoxLayout()
         self.teach_target_combo = QComboBox()
-        for title, offset in (("Z 캡 위 위치",16),("Z 캡 옆 위치",17),("Z 원위치",18),("R 회전량",21)):
+        for title, offset in (("Z 캡 위 위치",16),("Z 캡 옆 위치",17),("Z 원위치",18),("R DECAP 설정값",21)):
             self.teach_target_combo.addItem(title, offset)
         self.teach_value_input = QLineEdit()
         self.teach_value_input.setPlaceholderText("pulse")
@@ -391,32 +347,37 @@ class MainWindow(DeviceControls, QMainWindow):
         teach_row.addWidget(self._action_button("적용", "teach_apply", self._apply_teach))
         layout.addLayout(teach_row)
         save_row = QHBoxLayout()
-        save_row.addWidget(self._action_button("Z 읽은 값 복사", "teach_capture", self._capture_teach))
-        save_row.addWidget(self._action_button("EEPROM 저장", "motion_save", self._save_device_parameters))
+        for axis in ("Z", "R"):
+            button = self._action_button(f"SAVE {axis}", f"teach_save_{axis.lower()}",
+                                         lambda checked=False, axis=axis: self._save_captured_axis(axis))
+            button.setProperty("save_teaching_axis", axis)
+            button.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+            button.setStyleSheet("font-size:12px; padding:3px 6px;")
+            save_row.addWidget(button, 1)
         layout.addLayout(save_row)
-        teaching_note = QLabel("위치 조회는 설정을 변경하지 않습니다. 티칭 적용 후 읽기로 검증합니다.\nEEPROM 저장은 장비 파라미터 전체를 저장합니다. 구형 F/W의 RPOS는 저장 후보도 변경합니다.")
-        teaching_note.setWordWrap(True)
-        self.teach_target_combo.setToolTip(teaching_note.text())
-        self.rpos_read_button = rpos_button
-        rpos_button.setToolTip(teaching_note.text())
+        self.teach_target_combo.setToolTip("적용은 RAM에 반영합니다. SAVE Z는 Z CAP UP, SAVE R은 R DECAP 캡처값을 저장합니다.")
+        rpos_button.setToolTip("현재 위치를 읽습니다. HOME 완료 후 대기 중에는 Z/R 위치를 읽어 저장 후보로 표시합니다.")
         parameter_row = QHBoxLayout()
         self.parameter_combo = QComboBox()
         for offset,(title,unit) in enumerate(PARAMETERS):
-            self.parameter_combo.addItem(f"{title} ({unit})" if unit else title,offset)
+            if offset <= 6 or offset in TEACH_OFFSETS:
+                continue
+            self.parameter_combo.addItem(title, offset)
+            if unit:
+                self.parameter_combo.setItemData(self.parameter_combo.count() - 1, unit, Qt.ItemDataRole.ToolTipRole)
         self.parameter_value_input = QLineEdit()
-        self.parameter_value_input.setPlaceholderText("장비 값 조회 후 입력")
-        parameter_row.addWidget(self.parameter_combo,1)
-        parameter_row.addWidget(self.parameter_value_input,1)
+        self.parameter_value_input.setPlaceholderText("설정값")
+        parameter_row.addWidget(self.parameter_combo, 2)
+        parameter_row.addWidget(self.parameter_value_input, 1)
+        read_parameter = self._action_button("읽기", "parameter_read", self._read_parameter)
+        read_parameter.setToolTip("선택한 모션 설정의 현재 값을 읽습니다.")
+        parameter_row.addWidget(read_parameter)
+        apply_parameter = self._action_button("적용", "parameter_apply", self._apply_parameter)
+        apply_parameter.setToolTip("선택한 모션 설정을 RAM에 반영합니다.")
+        parameter_row.addWidget(apply_parameter)
         layout.addLayout(parameter_row)
-        parameter_actions = QHBoxLayout()
-        parameter_actions.addWidget(self._action_button("파라미터 읽기", "parameter_read", self._read_parameter))
-        parameter_actions.addWidget(self._action_button("파라미터 적용", "parameter_apply", self._apply_parameter))
-        layout.addLayout(parameter_actions)
-        self.setting_status_label = self._compact_label("설정: RAM 확인 후 EEPROM에 저장")
+        self.setting_status_label = self._compact_label("")
         layout.addWidget(self.setting_status_label)
-        parameter_note = QLabel("전류·분해능 변경은 저장 후 재기동/LOAD와 HOME이 필요할 수 있습니다.")
-        parameter_note.setWordWrap(True)
-        self.parameter_combo.setToolTip(parameter_note.text())
         self.parameter_combo.currentIndexChanged.connect(self._refresh_device_controls)
 
         for label in (move_label, rpos_label):
@@ -438,43 +399,6 @@ class MainWindow(DeviceControls, QMainWindow):
         self.motion_buttons.extend((send_button, rpos_button))
         self.move_axis_combo.currentIndexChanged.connect(self._refresh_device_controls)
 
-        manual = page("Debug")
-        command_row(manual, "Y축", (("F · READY 0", "READY 0"), ("B · READY 1", "READY 1")))
-        command_row(manual, "바디 그립", (("ON", "BGRIP 1"), ("OFF", "BGRIP 0")))
-        command_row(manual, "캡 그립", (("ON", "CGRIP 1"), ("OFF", "CGRIP 0")))
-        command_row(manual, "유닛 시험", (("UDECAP", "UDECAP"), ("UCAP", "UCAP")))
-        lr_row = QHBoxLayout()
-        lr_row.addWidget(QLabel("반복 횟수"))
-        self.longrun_count_input = QSpinBox()
-        self.longrun_count_input.setRange(1,1000000)
-        self.longrun_count_input.setValue(100)
-        lr_row.addWidget(self.longrun_count_input)
-        lr_row.addWidget(self._action_button("횟수 시작", "motion_lr", self._start_longrun))
-        unlimited_button = self._action_button("무한 시작", "motion_lr_unlimited",
-            lambda checked=False: self._send_motion_command("LR"))
-        unlimited_button.setProperty("device_command", "LR")
-        unlimited_button.setToolTip("LR만 전송합니다. STOP 또는 오류가 발생할 때까지 반복합니다.")
-        lr_row.addWidget(unlimited_button)
-        manual.addLayout(lr_row)
-        self.longrun_status_label = self._compact_label("완료 횟수: --")
-        manual.addWidget(self.longrun_status_label)
-        debug_actions = QHBoxLayout()
-        debug_actions.addWidget(self._motion_button("센서 조회", "GSENSOR"))
-        self.longrun_export_button = QPushButton("Longrun 기록 저장")
-        self.longrun_export_button.setMinimumHeight(28)
-        self.longrun_export_button.setEnabled(False)
-        self.longrun_export_button.clicked.connect(self._export_longrun)
-        debug_actions.addWidget(self.longrun_export_button)
-        manual.addLayout(debug_actions)
-        self.sensor_status_label = self._compact_label("센서 상태: 확인 안 됨")
-        manual.addWidget(self.sensor_status_label)
-        self.grip_status_label = self._compact_label("캡 / 바이알: 확인 안 됨")
-        manual.addWidget(self.grip_status_label)
-        longrun_note = QLabel("설정 횟수의 CAP까지 완료하면 종료합니다. STOP으로 중단할 수 있습니다.")
-        longrun_note.setWordWrap(True)
-        self.longrun_count_input.setToolTip(longrun_note.text())
-        manual.addStretch()
-
         diagnostics = page("Status")
         command_row(diagnostics, "조회", (("SL", "SL"), ("CD", "CD"), ("PL", "PL")))
         self.diagnostic_label = self._compact_label("SL 상태 · CD 제어값 · PL 설정")
@@ -489,6 +413,11 @@ class MainWindow(DeviceControls, QMainWindow):
         self.diagnostic_table.setMinimumHeight(100)
         self.diagnostic_table.setAlternatingRowColors(True)
         diagnostics.addWidget(self.diagnostic_table, 1)
+        self.longrun_panel = LongrunPanel(log=self._append_log, single_endpoint=self._single_endpoint,
+            terminators=lambda: (self.cr_checkbox.isChecked(), self.lf_checkbox.isChecked()),
+            initial_ips=MODULE_PRESETS)
+        self.motion_tabs.addTab(self.longrun_panel, "Longrun")
+        self.motion_tabs.currentChanged.connect(self._on_motion_tab_changed)
         return input_area
 
     def _compact_label(self, text):
@@ -514,6 +443,20 @@ class MainWindow(DeviceControls, QMainWindow):
         return button
 
     def _send_motion_command(self, command):
+        stopping = command.strip().upper() == "STOP"
+        if stopping:
+            for action in self.position_actions.values():
+                action.cancel("STOP 요청")
+        if stopping and self.motion_tabs.currentWidget() is self.longrun_panel:
+            self.longrun_panel.stop_all()
+            for session in self.sessions.values():
+                if self._session_needs_stop(session):
+                    session.request("STOP")
+            return True
+        action = self.position_actions[self.transport_combo.currentData()]
+        if not stopping and action.active:
+            self._log_error("위치 이동 절차가 진행 중입니다. 중단하려면 STOP을 누르세요.")
+            return False
         if self._active_command_client() is None:
             self._log_error("Cannot send: connect TCP/IP or UART first.")
             return False
@@ -521,13 +464,25 @@ class MainWindow(DeviceControls, QMainWindow):
         self._refresh_device_controls()
         return result
 
+    @staticmethod
+    def _session_needs_stop(session):
+        return (session.connected and (session.motion_wait or session.stop_wait or session.uncertain
+                or (session.state and (session.state.busy or not session.state.idle))))
+
+    def _on_motion_tab_changed(self, _index):
+        if self.motion_tabs.tabText(self.motion_tabs.currentIndex()) != "Test":
+            for action in self.position_actions.values():
+                action.cancel("탭 변경")
+        self._refresh_device_controls()
+
+    def _start_position_action(self, offset):
+        action = self.position_actions[self.transport_combo.currentData()]
+        result = action.origin() if offset is None else action.cap(offset)
+        self._refresh_device_controls()
+        return result
+
     def _send_speed(self):
         self._send_motion_command(f"SPEED {self.speed_input.value()}")
-
-    def _set_command_controls_enabled(self, enabled):
-        self.command_send_button.setEnabled(enabled)
-        for button in self.motion_buttons:
-            button.setEnabled(enabled)
 
     def _create_command_area(self) -> QWidget:
         command_area = QGroupBox("Command")
@@ -554,6 +509,7 @@ class MainWindow(DeviceControls, QMainWindow):
         self.command_input = command_input
         command_input.setObjectName("command_input")
         command_input.setPlaceholderText("Enter command")
+        command_input.setToolTip("한 줄에 ASCII 명령 하나를 입력하세요. 최대 253바이트입니다.")
         command_input.setMaximumHeight(32)
         command_row.addWidget(command_input)
 
@@ -592,8 +548,8 @@ class MainWindow(DeviceControls, QMainWindow):
         connection_bar = QWidget()
         connection_bar.setObjectName("connection_bar")
         layout = QHBoxLayout(connection_bar)
-        layout.setContentsMargins(20, 14, 20, 14)
-        layout.setSpacing(10)
+        layout.setContentsMargins(16, 10, 16, 10)
+        layout.setSpacing(8)
 
         title_label = QLabel("Vial Decapper")
         title_label.setObjectName("app_title")
@@ -601,7 +557,7 @@ class MainWindow(DeviceControls, QMainWindow):
         brand_mark = QLabel("◈")
         brand_mark.setObjectName("brand_mark")
         brand_mark.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        brand_mark.setFixedSize(40, 40)
+        brand_mark.setFixedSize(36, 36)
         layout.addWidget(brand_mark)
         layout.addWidget(title_label)
         layout.addStretch()
@@ -678,16 +634,43 @@ class MainWindow(DeviceControls, QMainWindow):
             self._append_log("ERROR: Enter an IP address.")
             return
         try:
+            address = ipaddress.IPv4Address(host)
+            if address.is_unspecified or address.is_multicast:
+                raise ValueError
+            host = str(address)
+        except ValueError:
+            self._log_error("올바른 IPv4 주소를 입력하세요.")
+            return
+        try:
             port = int(self.port_input.text())
             if not 1 <= port <= 65535:
                 raise ValueError
         except ValueError:
             self._append_log("ERROR: Port must be between 1 and 65535.")
             return
+        if self.longrun_panel.endpoint_in_use((host, port)):
+            self._log_error("Longrun에서 연결 중인 IP입니다. 해당 행의 연결을 먼저 해제하세요.")
+            return
+        self._single_tcp_endpoint = (host, port)
         self.command_client.connect_to_host(host, port)
 
+    def _single_endpoint(self):
+        reserved = (self.command_client.is_connected() or
+                    self.command_client.socket.state() != QAbstractSocket.SocketState.UnconnectedState)
+        return getattr(self, "_single_tcp_endpoint", None) if reserved else None
+
     def _send_command(self) -> None:
+        if self.motion_tabs.currentWidget() is self.longrun_panel:
+            self._log_error("Longrun 탭에서는 IP 목록의 시작/STOP 버튼을 사용하세요.")
+            return
         self._send_motion_command(self.command_input.text())
+
+    def closeEvent(self, event):
+        self.session_timer.stop()
+        self.longrun_panel.close_connections()
+        self.command_client.disconnect_from_host()
+        self.serial_client.close()
+        super().closeEvent(event)
 
     def _send_teaching_point(self) -> None:
         position = self.move_position_input.text().strip()
@@ -703,10 +686,11 @@ class MainWindow(DeviceControls, QMainWindow):
         if session.extended:
             target = value
             if mode == "R":
-                if axis not in session.positions or session.clock()-session.position_at[axis]>3:
-                    self._log_error("상대 이동 전에 현재 축 위치를 Read로 확인하세요.")
+                current = session.fresh_position(axis)
+                if current is None:
+                    self._log_error("상대 이동 전에 장비 대기 상태에서 현재 축 위치를 Read로 다시 확인하세요.")
                     return
-                target += session.positions[axis]
+                target += current
             if not session.target_in_range(axis,target):
                 self._log_error("장비 리미트 밖이거나 리미트를 확인하지 못했습니다.")
                 return
@@ -715,19 +699,44 @@ class MainWindow(DeviceControls, QMainWindow):
     def _send_rpos_command(self) -> None:
         session = self._selected_session()
         axis = self.move_axis_combo.currentData()
-        if session.extended:
-            self._send_motion_command(f"GPOS {axis}")
+        if session.teaching_read_captures:
+            command = "RPOS"
+        elif session.extended:
+            command = f"GPOS {axis}"
         elif axis == "Z":
             self._log_error("구형 F/W: RPOS는 Z 티칭 저장 후보도 변경합니다.")
-            self._send_motion_command("RPOS")
+            command = "RPOS"
         else:
             self._log_error("R 위치 조회에는 확장 F/W가 필요합니다.")
+            return
+        target = self.teach_target_combo.currentData()
+        text = self.teach_value_input.text()
+        if self._send_motion_command(command):
+            self._teaching_read = (session.pending, target, text)
+
+    def _finish_teaching_read(self, session, pending, readings):
+        if not self._teaching_read or self._teaching_read[0] is not pending or session.pending is pending:
+            return
+        _, target, text = self._teaching_read
+        self._teaching_read = None
+        if target != self.teach_target_combo.currentData() or text != self.teach_value_input.text():
+            return
+        axis = "R" if target == 21 else "Z"
+        if readings and axis in readings and (axis == "Z" or session.paired_rpos):
+            position = session.fresh_position(axis)
+            if position is not None:
+                self.teach_value_input.setText(str(position))
 
     def _active_command_client(self):
         client = self.command_client if self.transport_combo.currentData() == "TCP" else self.serial_client
         return client if client.is_connected() else None
 
     def _on_transport_changed(self, _index):
+        for action in self.position_actions.values():
+            action.cancel("전송 경로 변경")
+        for session in self.sessions.values():
+            session.clear_teaching_capture()
+        self._teaching_read = None
         self.current_z_position_value.setText("--")
         self._displayed_speed = None
         self._displayed_parameter = None
@@ -735,9 +744,9 @@ class MainWindow(DeviceControls, QMainWindow):
         self._append_log(f"전송 경로: {self.transport_combo.currentText()}")
 
     def _reset_receive_state(self, source):
-        self._receive_buffers[source].clear()
-        self._discarding_receive_line.discard(source)
+        self._responses[source].reset()
         if self.transport_combo.currentData() == source:
+            self._teaching_read = None
             self.current_z_position_value.setText("--")
 
     def _toggle_uart_connection(self) -> None:
@@ -753,44 +762,39 @@ class MainWindow(DeviceControls, QMainWindow):
         self.communication_log.appendPlainText(f"[{timestamp}] {message}")
 
     def _on_connected(self) -> None:
+        self.position_actions["TCP"].cancel("재연결")
+        peer = self.command_client.socket.peerAddress()
+        if not peer.isNull():
+            self._single_tcp_endpoint = (peer.toString().removeprefix("::ffff:"), self.command_client.socket.peerPort())
         self.connect_button.setText("Disconnect")
         self._reset_receive_state("TCP")
-        if self.transport_combo.currentData() == "TCP":
-            self._set_command_controls_enabled(True)
-        if self.serial_client.is_connected():
-            self.uart_connect_button.setText("UART Disconnect")
         self._append_log("[TCP] Connected.")
         self._primed_routes.discard("TCP")
         self.sessions["TCP"].start()
         self._refresh_device_controls()
 
     def _on_disconnected(self) -> None:
+        self.position_actions["TCP"].cancel("연결 끊김")
         self.connect_button.setText("Connect")
         self._reset_receive_state("TCP")
-        if self.transport_combo.currentData() == "TCP":
-            self._set_command_controls_enabled(False)
-        if not self.serial_client.is_connected():
-            self.uart_connect_button.setText("UART Connect")
         self._append_log("[TCP] Disconnected.")
         self.sessions["TCP"].stop()
         self._primed_routes.discard("TCP")
         self._refresh_device_controls()
 
     def _on_uart_connected(self) -> None:
+        self.position_actions["UART"].cancel("재연결")
         self.uart_connect_button.setText("UART Disconnect")
         self._reset_receive_state("UART")
-        if self.transport_combo.currentData() == "UART":
-            self._set_command_controls_enabled(True)
         self._append_log("UART connected.")
         self._primed_routes.discard("UART")
         self.sessions["UART"].start()
         self._refresh_device_controls()
 
     def _on_uart_disconnected(self) -> None:
+        self.position_actions["UART"].cancel("연결 끊김")
         self.uart_connect_button.setText("UART Connect")
         self._reset_receive_state("UART")
-        if self.transport_combo.currentData() == "UART":
-            self._set_command_controls_enabled(False)
         self._append_log("UART disconnected.")
         self.sessions["UART"].stop()
         self._primed_routes.discard("UART")
@@ -800,35 +804,19 @@ class MainWindow(DeviceControls, QMainWindow):
         self._append_log(f"[{source}] TX: {self._render_bytes(payload)}")
 
     def _log_received(self, payload: bytes, source="TCP") -> None:
-        # A readyRead event can contain part of a line or several lines.
-        # Keep bytes until LF so split UTF-8 and CRLF sequences stay intact.
-        parts = payload.split(b"\n")
-        buffer = self._receive_buffers[source]
-        for index, part in enumerate(parts):
-            if source not in self._discarding_receive_line:
-                if len(buffer) + len(part) > 65536:
-                    buffer.clear()
-                    self._discarding_receive_line.add(source)
-                    self._log_error(f"[{source}] RX line exceeded 64 KiB; discarding until newline.")
-                else:
-                    buffer.extend(part)
-            if index == len(parts) - 1:
-                break
-            if source in self._discarding_receive_line:
-                self._discarding_receive_line.discard(source)
-                buffer.clear()
-                continue
-            text = self._clean_received_text(bytes(buffer))
-            buffer.clear()
-            for line in text.splitlines():
-                match = re.fullmatch(r"RPOS\s*[, ]\s*([+-]?\d+)\s*,?", line, re.IGNORECASE)
-                if match and source == self.transport_combo.currentData():
-                    self.current_z_position_value.setText(match.group(1))
-                self._append_log(f"[{source}] RX: {line}")
-                self.sessions[source].receive(line)
-                self._prime_device_parameters(source)
-                if source == self.transport_combo.currentData():
-                    self._refresh_device_controls()
+        session = self.sessions[source]
+        received = False
+        for line in self._responses[source].feed(payload):
+            received = True
+            self._append_log(f"[{source}] RX: {line}")
+            pending = session.pending
+            readings = session.receive(line)
+            self._prime_device_parameters(source)
+            self.position_actions[source].tick()
+            if source == self.transport_combo.currentData():
+                self._finish_teaching_read(session, pending, readings)
+        if received and source == self.transport_combo.currentData():
+            self._refresh_device_controls()
 
     def _log_error(self, message: str) -> None:
         self._append_log(f"ERROR: {message}")
@@ -836,24 +824,6 @@ class MainWindow(DeviceControls, QMainWindow):
     @staticmethod
     def _render_bytes(payload: bytes) -> str:
         return payload.decode("ascii", errors="backslashreplace").replace("\r", "\\r").replace("\n", "\\n")
-
-    @staticmethod
-    def _clean_received_text(payload: bytes) -> str:
-        text = payload.decode("utf-8", errors="replace")
-        console_noise = "RND>" in text or "\x1b[" in text
-        # The firmware's serial console emits ANSI CSI commands while it
-        # redraws the prompt (for example ESC[2K = erase line).
-        text = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", text)
-        lines = []
-        for line in text.replace("\r\n", "\n").replace("\r", "\n").split("\n"):
-            stripped = line.strip()
-            if not stripped or stripped.startswith("RND>") or stripped in {"[2K", "[K"}:
-                continue
-            # Ignore the one-character-at-a-time command echo from the CLI.
-            if console_noise and len(stripped) == 1 and stripped.isprintable():
-                continue
-            lines.append(line.strip())
-        return "\n".join(lines)
 
     def _save_communication_log(self) -> None:
         default_name = f"vial_decapper_log_{datetime.now():%Y%m%d_%H%M%S}.txt"

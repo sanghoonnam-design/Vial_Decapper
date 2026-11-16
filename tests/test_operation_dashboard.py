@@ -174,6 +174,39 @@ class OperationDashboardTests(unittest.TestCase):
         self.assertFalse(s.request("SAVE 1"))
         self.assertNotIn("SAVE 1", self.sent)
 
+    def test_repeated_mismatch_stays_blocked_until_requested_value_is_confirmed(self):
+        s = self.s
+        s.request("PL 51,200")
+        s.receive("PL OK")
+        s.receive("PGET 51,199")
+        self.assertTrue(s.request("PGET 51"))
+        s.receive("PGET 51,199")
+        self.assertFalse(s.request("SAVE 1"))
+        self.assertTrue(s.request("PGET 51"))
+        s.receive("PGET 51,200")
+        self.assertTrue(s.request("SAVE 1"))
+
+    def test_non_ascii_longrun_count_does_not_change_motion_state(self):
+        for command in ("LR ²", "LR １２", "CAPDECAPLR ²"):
+            with self.subTest(command=command):
+                self.assertFalse(self.s.request(command))
+                self.assertTrue(self.s.can_move)
+                self.assertEqual(self.sent, [])
+
+    def test_confirming_another_setting_does_not_clear_unresolved_write(self):
+        s = self.s
+        s.request("PL 51,200")
+        s.receive("PL OK")
+        s.receive("PGET 51,199")
+        s.request("PL 52,300")
+        s.receive("PL OK")
+        s.receive("PGET 52,300")
+        self.assertFalse(s.request("SAVE 1"))
+        self.assertTrue(s.request("PL 51,199"))
+        s.receive("PL OK")
+        s.receive("PGET 51,199")
+        self.assertTrue(s.request("SAVE 1"))
+
     def test_maintenance_and_diagnostics_do_not_prove_motion_completion(self):
         s = self.s
         s.request("HOME")

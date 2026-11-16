@@ -1,6 +1,6 @@
-# Vial Decapper PySide6 Template
+# Vial Decapper
 
-This project is a minimal PySide6 application template with a main window in `ui/`. UI source belongs in `ui/`.
+PySide6 controls for single-device teaching, diagnostics and multi-module Longrun.
 
 ## Device preview
 
@@ -31,15 +31,16 @@ faces by depth, so intersecting parts may show minor overlap artifacts at some a
   TCP command parser requires both CR and LF to execute a command.
 - TX means the local transport accepted the bytes, not that the device executed
   the command. Check RX for the device response. Logs identify the transport.
-- Complete newline-terminated responses are processed in order. Position values
+- Commands accept one printable ASCII line of up to 253 bytes before CR/LF.
+  Complete newline-terminated responses are processed in order. Position values
   are updated only from the selected transport; disconnecting clears the value.
 - The communication log displays and saves the most recent 10,000 lines.
 
-Teaching uses pure axis reads (`GPOS`), explicit targets (`TEACH`) and confirmed
-EEPROM save (`SAVE 1`) when firmware advertises API schema 1. The parameter editor
-uses the actual Decapper PL indexes reported by the firmware; Debug offers finite
-LR cycles and sensor reads. The upper panel is expanded, motion tabs have no scroll
-areas, and device/F/W/API status appears on one compact line. See
+Teaching uses `GPOS` for axis reads and `TEACH` for explicit RAM targets. On current
+firmware, Read captures the two coordinates with `RPOS` when the device is homed and
+idle. `SAVE Z` saves the Z CAP UP capture and `SAVE R` saves the R DECAP capture.
+Both saves are followed by a readback. The parameter editor uses the Decapper PL
+indexes reported by the firmware. See
 [the command contract](docs/command-integration.md) for replies, parameter codes,
 legacy behavior and equipment validation limits.
 
@@ -47,11 +48,19 @@ legacy behavior and equipment validation limits.
   CAP/DECAP requires a recent idle CT sample from schema-1 firmware. STOP is
   confirmed after the firmware reports idle; legacy firmware can report Busy
   clear only. Clearing an error never starts motion.
-- **Debug** shows Y limit/CT and the firmware's grip flags. Vial detection at
-  Forward is retained at Back. Longrun shows elapsed time and the verified count,
-  and exports the last 100 runs per transport in this app session as UTF-8 CSV.
-- **Teaching** shows requested changes after RAM readback and confirms EEPROM
-  persistence only after SAVE succeeds. There is no automatic LOAD or HOME.
+- **Test** combines the former Debug controls above the automatic controls,
+  showing Y limit/CT and the firmware's grip flags. Vial detection at
+  Forward is retained at Back.
+- **Longrun** has its own tab beside Status. Add IPv4 addresses, check modules,
+  use **선택 연결**, then **횟수 시작** or **무한 시작**. All checked modules must be
+  connected and ready. Each module shows its own status, count and elapsed time.
+  Unchecked running modules are still monitored. **전체 STOP** and the top STOP
+  on this tab stop all connected Longrun modules. CSV records include IP/port.
+  Release a module's single-device TCP connection before connecting it here.
+  Reconnect does not restart a test. Disconnect is not a STOP command.
+- **Teaching** shows requested changes after RAM readback. Position checks use
+  the last verified limits. After an uncertain LOAD or factory reset, a fresh
+  state reply is followed by a new read of the firmware settings.
 - **Status** renders SL/CD/PL as read-only snapshots. CD target positions do not
   replace positions from GPOS/RPOS.
 

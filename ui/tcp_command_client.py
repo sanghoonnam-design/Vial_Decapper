@@ -1,6 +1,8 @@
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtNetwork import QAbstractSocket, QTcpSocket
 
+from ui.command_wire import build_command_payload
+
 
 class TcpCommandClient(QObject):
     connected = Signal()
@@ -17,14 +19,7 @@ class TcpCommandClient(QObject):
         self.socket.readyRead.connect(self._read_available_data)
         self.socket.errorOccurred.connect(lambda _: self.error.emit(self.socket.errorString()))
 
-    @staticmethod
-    def build_command_payload(command: str, append_cr: bool, append_lf: bool) -> bytes:
-        payload = command.strip().encode("ascii")
-        if append_cr:
-            payload += b"\r"
-        if append_lf:
-            payload += b"\n"
-        return payload
+    build_command_payload = staticmethod(build_command_payload)
 
     def connect_to_host(self, host: str, port: int) -> None:
         self.socket.connectToHost(host, port)
@@ -40,16 +35,13 @@ class TcpCommandClient(QObject):
         return self.socket.state() == QAbstractSocket.SocketState.ConnectedState
 
     def send_command(self, command: str, append_cr: bool, append_lf: bool) -> bytes:
-        if not command.strip():
-            self.error.emit("Cannot send an empty command.")
+        try:
+            payload = self.build_command_payload(command, append_cr, append_lf)
+        except ValueError as error:
+            self.error.emit(str(error))
             return b""
         if not self.is_connected():
             self.error.emit("Cannot send: TCP socket is not connected.")
-            return b""
-        try:
-            payload = self.build_command_payload(command, append_cr, append_lf)
-        except UnicodeEncodeError:
-            self.error.emit("Commands must use ASCII characters.")
             return b""
         written = self.socket.write(payload)
         if written != len(payload):

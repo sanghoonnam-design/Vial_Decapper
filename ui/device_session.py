@@ -5,6 +5,7 @@ import math
 import re
 import time
 
+from ui.command_wire import command_bytes
 from ui.device_telemetry import (DeviceState, LongrunRecord, fields, longrun_fields,
                                  parameter_value, sensor_fields, snapshot, state_fields)
 
@@ -15,10 +16,12 @@ QUERIES = {"VERSION", "VERS", "VER", "GSTA", "ST", "GSTATE", "GERR", "ERR",
            "SL", "CD", "DI", "RTC", "IP", "SYSTEM", "SYS", "PPARAM"}
 EXTENDED = {"GPOS", "GSTATE", "GSENSOR", "GLR", "PGET", "TEACH"}
 TEACH_OFFSETS = {16, 17, 18, 21}
+CAPTURE_OFFSETS = {"Z": 16, "R": 21}
 AUTOMATIC = {"CAP", "DECAP"}
 PAUSABLE_PHASES = {3, 4, 16}
 LONGRUN_COMMANDS = {"LR", "CAPDECAPLR"}
-FAILURES = {"BUSY", "INVALID", "UNSUPPORTED", "RANGE", "FAIL"}
+SETTINGS_RESET = {"LOAD", "FACT", "FACTORY"}
+FAILURES = {"BUSY", "INVALID", "UNSUPPORTED", "RANGE", "FAIL", "NO_RPOS"}
 MOTION_ACK = {"HOME": "HOME", "ORG": "ORIGIN", "DECAP": "DECAP", "CAP": "CAP",
               "UDECAP": "UDECAP", "UCAP": "UCAP", "LR": "LR", "CAPDECAPLR": "LR"}
 PARAMETERS = (
@@ -29,7 +32,7 @@ PARAMETERS = (
     ("R 음의 리미트", "pulse"), ("R 양의 리미트", "pulse"), ("소프트 리미트 사용", "0/1"),
     ("Z 가속도", ""), ("Z 속도", ""), ("Z 캡 위 위치", "pulse"),
     ("Z 캡 옆 위치", "pulse"), ("Z 원위치", "pulse"), ("R 가속도", ""),
-    ("R 속도", ""), ("R 회전량", "pulse"),
+    ("R 속도", ""), ("R DECAP 설정값", "pulse"),
 )
 
 class DeviceSession:
@@ -55,8 +58,13 @@ class DeviceSession:
         self.retry_schema_at = None
         self.parameter_base = None
         self.parameters = {}
+        self.settings_reload_pending = False
         self.positions = {}
         self.position_at = {}
+        self.captured_targets = {}
+        self.accept_rpos_capture = False
+        self.paired_rpos = None
+        self.axis_save_readback = None
         self.speed = None
         self.sensors = None
         self.sensors_at = None
@@ -81,7 +89,7 @@ class DeviceSession:
         self.verified_settings = {}
         self.setting_verify = None
         self.setting_text = ""
-        self.setting_unverified = set()
+        self.setting_unverified = {}
         self.operation_text = ""
         self.active_motion = None
         self.motion_id = None
@@ -93,6 +101,7 @@ class DeviceSession:
         self.pause_deadline = None
         self.motion_started = None
         self.last_response = ""
+        self.response_serial = 0
         self.pending = None
         self.queue = deque()
         self.uncertain = False
@@ -128,6 +137,39 @@ class DeviceSession:
 
     def _fresh_at(self, timestamp, max_age=3):
         return self.connected and timestamp is not None and self.clock() - timestamp <= max_age
+
+    def _invalidate_positions(self):
+        self.positions.clear()
+        self.position_at.clear()
+        self.clear_teaching_capture()
+
+    def clear_teaching_capture(self):
+        self.captured_targets.clear()
+        self.accept_rpos_capture = False
+
+    @property
+    def can_capture_teaching(self):
+        return self.extended and self.can_move and self.state.homed
+
+    @property
+    def teaching_read_captures(self):
+        return self.can_capture_teaching and self.paired_rpos is not False
+
+    def _position_read_while_idle(self):
+        return (self.fresh and self.state.idle and not self.state.busy and not self.uncertain
+                and not self.motion_wait and not self.stop_wait and not self.disconnected_during_motion)
+
+    def fresh_position(self, axis):
+        if self._position_read_while_idle() and self._fresh_at(self.position_at.get(axis)):
+            return self.positions.get(axis)
+        return None
+
+    def _record_position(self, axis, value):
+        self.positions[axis] = value
+        if self._position_read_while_idle():
+            self.position_at[axis] = self.clock()
+        else:
+            self.position_at.pop(axis, None)
 
     @property
     def fresh_sensors(self):
@@ -188,21 +230,28 @@ class DeviceSession:
                 self._request_unknown(command)
 
     def request(self, command):
-        command = command.strip().upper()
-        if not command or "\r" in command or "\n" in command or not self.connected:
+        if not self.connected:
             return False
-        name = command.split()[0]
+        try:
+            command = command_bytes(command).decode("ascii").upper()
+        except ValueError as error:
+            self.report(str(error))
+            return False
+        name, _, arguments = command.partition(" ")
+        args = arguments.replace(",", " ").split()
         if name == "STOP":
+            if command != "STOP":
+                self.report("STOP에는 인자를 넣을 수 없습니다.")
+                return False
             if self.pending:
-                interrupted = self.pending[0]
-                if interrupted.startswith(("SAVE", "TEACH ", "PL ", "PGET ")):
-                    self._request_unknown(interrupted)
+                self._request_unknown(self.pending[0])
             self.queue.clear()
             self.pending = None
             self.completion_unknown = False
             self.stop_wait = True
             self.stop_acknowledged = False
             self.pause_target = None
+            self._invalidate_positions()
             self.operation_text = "STOP · 요청 전송 / 정지 확인 대기"
             self.queue.append(command)
             self._pump()
@@ -210,7 +259,26 @@ class DeviceSession:
         if self.pending or self.queue:
             self.report("이전 명령의 응답을 기다리는 중입니다.")
             return False
-        if (name in EXTENDED or command == "SAVE 1" or (name=="LR" and command!="LR")) and not self.extended:
+        if name in {"RPOS", "SAVE"}:
+            valid = {"Z", "R", "1"} if name == "SAVE" else CAPTURE_OFFSETS
+            if args and (len(args) != 1 or args[0] not in valid):
+                self.report(f"{name} · 인자를 확인하세요.")
+                return False
+            command = " ".join((name, *args))
+        elif name in {"PL", "TEACH"} and len(args) == 2:
+            command = f"{name} {args[0]},{args[1]}"
+        elif name in (LONGRUN_COMMANDS | {"GPOS", "PGET", "PL"}):
+            command = " ".join((name, *args))
+        save_axis = command[5:].strip() if name == "SAVE" else ""
+        longrun_limit = 0
+        if name in LONGRUN_COMMANDS:
+            if len(args) > 1 or (args and
+                    (not re.fullmatch(r"[0-9]{1,7}", args[0]) or not 1 <= int(args[0]) <= 1000000)):
+                self.report("Longrun · 반복 횟수는 1~1000000")
+                return False
+            if args:
+                longrun_limit = int(args[0])
+        if (name in EXTENDED or save_axis in {"1", "Z", "R"} or longrun_limit) and not self.extended:
             self.report("현재 F/W에서 확인되지 않은 기능입니다.")
             return False
         if name in MOTIONS and not self.can_move:
@@ -236,6 +304,7 @@ class DeviceSession:
                 self.report("설정 변경은 장비 대기 상태에서만 가능합니다.")
                 return False
         if name in MOTIONS:
+            self._invalidate_positions()
             self.sensor_idle = False
             self.motion_wait = True
             self.motion_acknowledged = False
@@ -248,20 +317,12 @@ class DeviceSession:
             self.active_motion = name
             self.operation_text = f"{name} · 접수 확인 대기"
             if name in LONGRUN_COMMANDS:
-                args = command.split()
-                if len(args) > 2 or (len(args) == 2 and
-                        (not args[1].isdigit() or len(args[1]) > 7 or not 1 <= int(args[1]) <= 1000000)):
-                    self.motion_wait = False
-                    self.active_motion = None
-                    self.operation_text = "Longrun · 반복 횟수는 1~1000000"
-                    self.report(self.operation_text)
-                    return False
                 self.track_longrun = True
                 self.longrun = None
                 self.longrun_at = None
                 self.lr_started = self.clock()
                 self.lr_started_wall = datetime.now().astimezone()
-                self.lr_limit = int(args[1]) if len(args) == 2 else 0
+                self.lr_limit = longrun_limit
                 self.lr_operation = None
                 self.lr_entered = False
                 self.lr_final_count = None
@@ -281,9 +342,27 @@ class DeviceSession:
             else:
                 self.setting_verify = None
             self.setting_text = "설정 응답 대기"
+        elif name == "RPOS":
+            axis = command[5:].strip()
+            if axis in CAPTURE_OFFSETS:
+                if not self.can_capture_teaching:
+                    self.report("축별 캡처는 HOME 완료 후 대기 상태에서 실행하세요.")
+                    return False
+                self.captured_targets.pop(axis, None)
+            elif command == "RPOS":
+                self.captured_targets.clear()
+            self.accept_rpos_capture = self.can_capture_teaching
         elif name == "SAVE":
-            if self.setting_unverified:
-                self.report("반영을 확인하지 못한 설정이 있습니다. 장비 값을 먼저 읽으세요.")
+            if save_axis in CAPTURE_OFFSETS:
+                captured = self.captured_targets.get(save_axis)
+                if not self.can_capture_teaching or captured is None:
+                    self.report(f"SAVE {save_axis} · HOME 완료 후 해당 축을 다시 캡처하세요.")
+                    return False
+                index = self.parameter_base + CAPTURE_OFFSETS[save_axis]
+                self.axis_save_readback = (save_axis, index, captured)
+            if save_axis not in CAPTURE_OFFSETS and self.setting_unverified:
+                indexes = ", ".join(str(index) for index in sorted(self.setting_unverified))
+                self.report(f"요청값과 일치하는지 확인하지 못한 설정: {indexes}. 값을 확인하거나 다시 적용하세요.")
                 return False
             self.setting_text = "EEPROM 저장 확인 대기"
         elif command in {"SL", "CD", "PL"}:
@@ -309,12 +388,15 @@ class DeviceSession:
         failed = body in FAILURES or re.fullmatch(r"E\d+", body)
         if failed and name!="PCONFIG":
             if expected:
+                self.last_response = line
+                self.response_serial += 1
                 self.pending=None
                 self.queue.clear()
                 self._request_rejected(expected, body)
                 self.report(line)
             return
         values = fields(body)
+        position_read = None
         try:
             if name in {"VERSION","VERS","VER"}:
                 if not body or re.fullmatch(r"E\d+", body): return
@@ -351,11 +433,35 @@ class DeviceSession:
                     self.schema=0;self.parameter_base=None
             elif name=="GPOS":
                 if len(values)!=2 or values[0] not in {"Z","R"}: return
-                self.positions[values[0]]=int(values[1])
-                self.position_at[values[0]]=self.clock()
+                if expected and expected.split()[1:] != values[:1]:
+                    return
+                axis, value = values[0], int(values[1])
+                self._record_position(axis, value)
+                position_read = {axis: value}
             elif name=="RPOS":
-                self.positions["Z"]=int(body.rstrip(","))
-                self.position_at["Z"]=self.clock()
+                if not expected:
+                    if len(values) == 1 and not self.extended and not self.paired_rpos:
+                        self._record_position("Z", int(values[0]))
+                    return
+                axis = expected[5:].strip()
+                if expected == "RPOS" and len(values) == 2:
+                    z, r = map(int, values)
+                    readings = {"Z": z, "R": r}
+                    self.paired_rpos = True
+                elif len(values) == 1 and (expected == "RPOS" or axis in CAPTURE_OFFSETS):
+                    readings = {axis or "Z": int(values[0])}
+                else:
+                    return
+                for position_axis, value in readings.items():
+                    self._record_position(position_axis, value)
+                position_read = readings
+                if (self.accept_rpos_capture and self.can_capture_teaching
+                        and (len(readings) == 2 or axis in CAPTURE_OFFSETS)):
+                    self.captured_targets.update(readings)
+                elif self.accept_rpos_capture and expected == "RPOS" and len(readings) == 1:
+                    self.paired_rpos = False
+                    self.report("이 F/W는 Z/R 캡처를 지원하지 않습니다. GPOS와 기존 Teaching을 사용하세요.")
+                self.accept_rpos_capture = False
             elif name=="PGET":
                 if len(values)!=2: return
                 index, number = int(values[0]), parameter_value(values[1])
@@ -363,7 +469,17 @@ class DeviceSession:
                     return
                 self.parameters[index] = number
                 if expected:
-                    self._settings_readback(index, number)
+                    if self.axis_save_readback and index == self.axis_save_readback[1]:
+                        axis, _, captured = self.axis_save_readback
+                        self.axis_save_readback = None
+                        if number != captured:
+                            self.setting_text = f"SAVE {axis} · 저장 후 조회 불일치: 캡처 {captured} / 읽음 {number:g}"
+                            self.report(self.setting_text)
+                        else:
+                            self.setting_unverified.pop(index, None)
+                            self.setting_text = f"SAVE {axis} · 저장 확인 / 조회 {number:g} pulse"
+                    else:
+                        self._settings_readback(index, number)
             elif name=="GSENSOR":
                 self.sensors = sensor_fields(body)
                 self.sensors_at = self.clock()
@@ -386,6 +502,9 @@ class DeviceSession:
                     if data.keys() != set(range(self.parameter_base, self.parameter_base + len(PARAMETERS))):
                         return
                     self.parameters.update(data)
+                    if self.settings_reload_pending:
+                        self.setting_text = "장비 설정 재조회 완료"
+                    self.settings_reload_pending = False
                 self.diagnostics[name] = data
                 self.diagnostic_at[name] = self.clock()
             elif name in MOTIONS and body.upper() != MOTION_ACK.get(name, "OK"):
@@ -398,8 +517,8 @@ class DeviceSession:
             return
         if expected:
             command=expected
-            if name=="GPOS" and command.split()[1]!=values[0]:return
             self.last_response=line
+            self.response_serial += 1
             self.pending=None
             if name=="PCONFIG" and self.extended:
                 self.queue.appendleft("GSTATE")
@@ -416,42 +535,61 @@ class DeviceSession:
                         self.operation_text = f"{name} · 요청 거절"
                 self.queue.appendleft("GSTATE" if self.extended else "GSTA")
             elif name in {"TEACH","PL"} and "," in command:
+                self.captured_targets.clear()
                 if self.setting_verify:
-                    self.setting_unverified.add(self.setting_verify[0])
+                    index = self._track_setting_write()
                     self.setting_text = "RAM 값 확인 중"
-                    self.queue.appendleft(f"PGET {self.setting_verify[0]}")
+                    self.queue.appendleft(f"PGET {index}")
                 else:
                     self.setting_text = "RAM 변경 응답 · 이 항목의 읽기 검증 미지원"
             elif name == "SAVE":
-                self.verified_settings.clear()
-                self.setting_text = "EEPROM 저장 확인"
-            elif name in {"LOAD", "FACT", "FACTORY"}:
-                self.parameters.clear()
-                self.positions.clear()
-                self.position_at.clear()
-                self.verified_settings.clear()
-                self.setting_unverified.clear()
-                self.setting_text = "장비 설정 재조회 필요"
-                self.state_at = None
+                if self.axis_save_readback:
+                    axis, index, captured = self.axis_save_readback
+                    self.captured_targets.pop(axis, None)
+                    before = self.parameters.pop(index, None)
+                    self.verified_settings.pop(index, None)
+                    self.setting_unverified[index] = (before, captured)
+                    self.setting_text = f"SAVE {axis} · EEPROM 응답 확인 / 설정값 조회 중"
+                    self.queue.appendleft(f"PGET {index}")
+                else:
+                    self.captured_targets.clear()
+                    self.verified_settings.clear()
+                    self.setting_text = "EEPROM 저장 확인"
+            elif name in SETTINGS_RESET:
+                self._invalidate_settings()
                 self.queue.appendleft("GSTATE" if self.extended else "GSTA")
-                if self.extended:
-                    self.queue.append("PL")
             elif name == "GLR" and self.lr_final_count is not None:
                 self.queue.appendleft("GSTATE")
             self._pump()
+            return position_read
+
+    def _track_setting_write(self):
+        index, before, requested = self.setting_verify
+        self.setting_verify = None
+        before = self.setting_unverified.get(index, (before, requested))[0]
+        self.setting_unverified[index] = (before, requested)
+        return index
+
+    def _invalidate_settings(self):
+        self.parameters.clear()
+        self._invalidate_positions()
+        self.verified_settings.clear()
+        self.setting_unverified.clear()
+        self.setting_text = "장비 설정 재조회 필요"
+        self.settings_reload_pending = self.extended
+        self.sensor_idle = False
+        self.state_at = None
 
     def _settings_readback(self, index, number):
-        self.setting_unverified.discard(index)
-        if self.setting_verify is None or index != self.setting_verify[0]:
+        if index not in self.setting_unverified:
             return
-        _, before, requested = self.setting_verify
-        self.setting_verify = None
+        before, requested = self.setting_unverified[index]
         if not math.isclose(number, requested, rel_tol=2e-7 if index in
                             {self.parameter_base, (self.parameter_base or 0)+1} else 0):
-            self.setting_unverified.add(index)
-            self.setting_text = f"RAM 검증 불일치: 요청 {requested:g} / 읽음 {number:g}"
+            self.setting_text = f"RAM 검증 불일치 [{index}]: 요청 {requested:g} / 읽음 {number:g}"
             self.report(self.setting_text)
             return
+        del self.setting_unverified[index]
         original = self.verified_settings.get(index, (before, number))[0]
         self.verified_settings[index] = (original, number)
         self.setting_text = f"RAM 확인: {format(before, 'g') if before is not None else '미조회'} → {number:g}"
@@ -469,20 +607,46 @@ class DeviceSession:
         elif name in {"PAUSE", "RESUME"}:
             self.pause_target = None
             self.operation_text = f"{name} · 요청 거절: {reason}"
+        elif command == "PL" and self.settings_reload_pending:
+            self.settings_reload_pending = False
+            self.setting_text = f"장비 설정 재조회 실패: {reason}"
         elif name == "SAVE" or command.startswith(("PL ", "TEACH ", "PGET ")):
+            if name == "SAVE" and reason == "NO_RPOS":
+                self.captured_targets.pop(command[5:].strip(), None)
+            if name in {"SAVE", "PGET"}:
+                self.axis_save_readback = None
             self.setting_verify = None
             self.setting_text = f"{name} · 확인 실패: {reason}"
 
     def _request_unknown(self, command):
         name = command.split()[0]
+        if name == "SAVE":
+            self.axis_save_readback = None
+            axis = command[5:].strip()
+            if axis in CAPTURE_OFFSETS:
+                self.captured_targets.pop(axis, None)
+            else:
+                self.captured_targets.clear()
+        elif name in SETTINGS_RESET:
+            self._invalidate_settings()
+        elif command == "PL" and self.settings_reload_pending:
+            self.settings_reload_pending = False
+            self.setting_text = "장비 설정 재조회 결과 미확인"
+        elif command.startswith(("PL ", "TEACH ")):
+            self.captured_targets.clear()
+        elif name == "PGET" and self.axis_save_readback:
+            self.axis_save_readback = None
+            self.setting_text = "EEPROM 응답 확인 · 저장 후 설정값 조회 미확인"
+            return
         if name in MOTIONS or name == "STOP":
             self.operation_text = f"{name} · 결과 미확인"
         elif name in {"PAUSE", "RESUME"}:
             self.pause_target = None
             self.operation_text = f"{name} · 적용 미확인"
-        elif name == "SAVE" or (self.setting_verify and name in {"PL", "TEACH", "PGET"}):
-            if self.setting_verify:
-                self.setting_unverified.add(self.setting_verify[0])
+        elif (name == "SAVE" or (self.setting_verify and name in {"PL", "TEACH"})
+              or (name == "PGET" and self.setting_unverified)):
+            if self.setting_verify and name in {"PL", "TEACH"}:
+                self._track_setting_write()
             self.setting_text = f"{name} · 결과 미확인, 장비 값 재조회 필요"
 
     def _finish_longrun(self, result, count=None, error=None):
@@ -509,6 +673,8 @@ class DeviceSession:
 
     def _update_state(self, state, expected):
         previous_code = self.state.error_code if self.state and self.state.error else None
+        was_moving = bool(self.state and (self.state.busy or not self.state.idle))
+        home_changed = bool(self.state and self.state.homed != state.homed)
         new_operation = bool(state.has_operation and self.state and self.state.has_operation
                              and state.operation != self.state.operation)
         self.state = state
@@ -521,6 +687,8 @@ class DeviceSession:
         idle = state.idle and not state.busy
         if not idle or new_operation:
             self.sensor_idle = False
+        if not idle or new_operation or was_moving or home_changed or state.error:
+            self._invalidate_positions()
         if self.lr_terminal and self.lr_final_count is not None and expected == "GSTATE":
             result, error, _ = self.lr_terminal
             if not idle or state.operation != self.lr_operation or not state.has_operation:
@@ -607,6 +775,8 @@ class DeviceSession:
         elif now >= self.next_poll:
             command = "GSTATE" if self.extended else "GSTA"
             self.next_poll = now + 0.5
+        elif self.settings_reload_pending and self.fresh and self.state.idle and not self.state.busy:
+            command = "PL"
         elif now >= self.next_discovery and (not self.version or self.schema is None or
                                              (self.retry_schema_at is not None and now >= self.retry_schema_at)):
             command = "VERSION" if not self.version else "PCONFIG"
@@ -632,7 +802,9 @@ class DeviceSession:
         if not self.extended:return False
         b=self.parameter_base
         offsets=(7,9,10) if axis=="Z" else (8,11,12)
-        if any(b+i not in self.parameters for i in (*offsets,13)):return False
+        indexes = (b + offset for offset in (*offsets, 13))
+        if any(index not in self.parameters or index in self.setting_unverified for index in indexes):
+            return False
         limit=self.parameters[b+offsets[0]]
         low,high=-limit,limit
         if self.parameters[b+13]:

@@ -32,9 +32,11 @@ Failures use INVALID, UNSUPPORTED, RANGE, BUSY, FAIL or an E#### code.
 |---|---|
 | PCONFIG | 1,base |
 | GPOS Z / GPOS R | axis,pulse; pure read, never changes the legacy teaching candidate |
+| RPOS / RPOS Z / RPOS R | Captures both teaching coordinates or the specified axis |
 | PGET index | index,value from current RAM; float values retain 32-bit precision |
 | TEACH index,pulse | OK after changing a whitelisted RAM target; validates idle state and limits |
 | SAVE 1 | OK / FAIL after backup/main EEPROM CRC and exact readback; ignores legacy RPOS candidate |
+| SAVE Z / SAVE R | Saves the corresponding RPOS capture as Z CAP UP or R DECAP; the app follows OK with PGET |
 | LOAD | OK HOME_REQUIRED / FAIL; validated settings apply to RAM/drivers under maintenance lock |
 | GSTATE | busy,homed,error,paused,phase,idle,error_code,operation_id,result |
 | GSTA / ST | busy,enable,homed,error,error_code[,isGripCap,isGripBody] |
@@ -47,6 +49,8 @@ Failures use INVALID, UNSUPPORTED, RANGE, BUSY, FAIL or an E#### code.
 | PL index,value | OK, then Python requests PGET index to read back RAM |
 
 GSTATE result: 0 none, 1 accepted/running, 2 completed, 3 stopped, 4 fault.
+CD target fields contain the last MOVE request values. They can be relative
+increments, and CD does not include the MOVE mode.
 Operation id is incremented at request registration. Phase numbers are the firmware
 FSM enums, not percentages. Sensor bits are electrical observations, not inverted
 logical ON values. GLR counts complete DECAP/CAP pairs. Limit 0 means legacy unlimited LR.
@@ -74,31 +78,50 @@ started by the current firmware. Check for a valid device handshake.
 | 14,15 | Z acceleration / velocity |
 | 16,17,18 | Z cap upper / side / origin position (pulse) |
 | 19,20 | R acceleration / velocity |
-| 21 | R rotation amount (pulse), not an absolute position |
+| 21 | R decapping target (pulse) on current firmware |
 
-TEACH permits offsets 16,17,18,21 only. The editor exposes the 22 actual Decapper
-fields; unrelated legacy PL slots that do not change RAM are not offered.
-Resolution and current-selection codes are checked in both UI and firmware.
+TEACH permits offsets 16,17,18,21 only. Status shows the 22 Decapper fields.
+Teaching provides dedicated controls for the four targets and a parameter editor
+for the position limits, acceleration and velocity. The F/W validates parameter values.
 Position preflight uses current RAM basic limits intersected with enabled software
 limits. REL MOVE also requires a recently read position to calculate the endpoint;
 firmware remains the final validator.
+Relative movement and copying a teaching position require a position read while
+idle. Motion and STOP invalidate previous readings. A limit with an unverified
+write cannot be used for a move's position check. An uncertain LOAD or factory
+reset clears the cached settings. The app reads PL again after idle is confirmed.
 
-Applying a parameter changes RAM. EEPROM Save confirms saving the whole configuration.
+Applying a parameter changes RAM. SAVE 1 confirms saving the whole configuration.
 Current/resolution changes may require SAVE 1 followed by LOAD or reboot and a new HOME.
 LOAD reinitializes driver coordinates, so the previous home reference is invalid.
-Legacy RPOS and plain SAVE are preserved for existing clients; RPOS still changes a
-legacy save candidate. New UI reads use GPOS and saves use SAVE 1.
+On current firmware, Teaching uses RPOS while homed and idle, and GPOS for other
+axis reads. Each SAVE button persists its captured axis.
 
 ## Screen and verification
-Test / Teaching / Debug / Status names are preserved. Status contains only SL/CD/PL.
-Debug offers separate Longrun buttons: Unlimited Start sends plain LR and works
+Tabs are Test / Teaching / Status / Longrun. Status contains only SL/CD/PL.
+The Longrun tab offers separate buttons: Unlimited Start sends plain LR and works
 with legacy firmware; Count Start sends LR count and requires schema 1. STOP ends
 either mode. Completed count is read from GLR on schema-1 firmware, increasing
 once per finished DECAP/CAP pair; legacy firmware still counts internally but cannot
 provide the new GLR display.
+Test contains individual Y/gripper/unit tests and sensor reads above the automatic
+controls. Y Forward and Y Backward send READY 0 and READY 1.
+
+Longrun has editable IPv4 rows and a shared port (default 8000). Check modules,
+connect them, and wait for firmware readiness before starting. Each endpoint has
+its own TCP socket, state tracker, receive buffer, progress and history. Every
+checked module must be ready before batch start; transmission failures are reported
+per module and never trigger motion replay. Starts are not mechanically synchronized.
+Unchecked connected modules continue to be monitored. Selected STOP targets checked
+connections; All STOP, including the shared top STOP while this tab is selected,
+targets every connected Longrun module. Main single-device connection is separate.
+Duplicate endpoints, including one connecting in the main bar, are rejected:
+release the existing connection before changing control workspaces.
+Connection loss leaves stopping unconfirmed. Reconnect sends only read-only
+discovery. Module-tagged logs and CSV records identify IP and port.
 The upper Teaching & Motion panel uses a 60:40 starting ratio with Command,
 subject to the page minimum sizes. Motion tabs have no scroll areas. State/F/W/API appear in a small
-single line; full state is also available as a tooltip. Minimum window size is 1000x720.
+single line; full state is also available as a tooltip. Minimum window size is 1000x820.
 
 The PC separates transmission, acceptance and firmware-reported completion.
 Automatic CAP/DECAP is gated on HOME and a recent idle CT sample. Firmware can

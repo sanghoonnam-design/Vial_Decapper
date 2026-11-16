@@ -23,7 +23,6 @@ from PySide6.QtWidgets import (
 )
 from ui.main_window import MainWindow
 from tests.device_fixture import ready
-from PySide6.QtWidgets import QMessageBox
 
 
 class MainWindowTests(unittest.TestCase):
@@ -33,7 +32,7 @@ class MainWindowTests(unittest.TestCase):
         payloads=[]
         window.command_client.socket.write=lambda data:payloads.append(bytes(data)) or len(data)
         commands=["HOME","STOP","PAUSE","RESUME","DECAP","CAP","ORG","READY 0","READY 1",
-                  "BGRIP 0","BGRIP 1","CGRIP 0","CGRIP 1","UDECAP","UCAP","LR","GSTA","SL","CD","PL","SPEED","SAVE"]
+                  "BGRIP 0","BGRIP 1","CGRIP 0","CGRIP 1","UDECAP","UCAP","GSTA","SL","CD","PL","SPEED"]
         for command in commands:
             with self.subTest(command=command):
                 ready(window,extended=True)
@@ -44,10 +43,8 @@ class MainWindowTests(unittest.TestCase):
                 button=window.findChild(QPushButton,"motion_"+command.replace(" ","_").lower())
                 self.assertIsNotNone(button)
                 self.assertTrue(button.isEnabled())
-                with patch("ui.device_controls.QMessageBox.question",return_value=QMessageBox.StandardButton.Yes):
-                    button.click()
-                actual="LR 100" if command=="LR" else "SAVE 1" if command=="SAVE" else command
-                self.assertEqual(payloads,[actual.encode()+b"\r\n"])
+                button.click()
+                self.assertEqual(payloads,[command.encode()+b"\r\n"])
 
     def test_command_buttons_follow_cr_lf_selection(self):
         window=MainWindow()
@@ -86,15 +83,25 @@ class MainWindowTests(unittest.TestCase):
         self.addCleanup(window.close)
         self.assertEqual(
             [window.motion_tabs.tabText(i) for i in range(window.motion_tabs.count())],
-            ["Test", "Teaching", "Debug", "Status"],
+            ["Test", "Teaching", "Status", "Longrun"],
         )
-        status_page = window.motion_tabs.widget(3)
+        status_page = window.motion_tabs.widget(2)
         status_buttons = status_page.findChildren(QPushButton)
         self.assertEqual([button.text() for button in status_buttons], ["SL", "CD", "PL"])
         self.assertIsNone(window.findChild(QPushButton, "pl_apply_button"))
         self.assertIsNone(window.findChild(QPushButton, "motion_st"))
         self.assertIsNone(window.findChild(QPushButton, "motion_spd"))
         self.assertIsNone(window.findChild(QPushButton, "motion_capdecaplr"))
+
+    def test_main_ip_field_rejects_hostnames_before_connection(self):
+        window = MainWindow()
+        self.addCleanup(window.close)
+        calls = []
+        window.command_client.connect_to_host = lambda *args: calls.append(args)
+        window.findChild(QLineEdit, "ip_address_input").setText("localhost")
+        window._toggle_connection()
+        self.assertEqual(calls, [])
+        self.assertIn("IPv4", window.communication_log.toPlainText())
 
     def test_motion_controls_follow_selected_uart_connection(self):
         window = MainWindow()

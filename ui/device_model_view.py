@@ -3,7 +3,7 @@
 from math import cos, sin, radians, sqrt
 
 from PySide6.QtCore import QPointF, Qt
-from PySide6.QtGui import QColor, QPainter, QPen, QPolygonF
+from PySide6.QtGui import QColor, QLinearGradient, QPainter, QPen, QPolygonF
 from PySide6.QtWidgets import QWidget
 
 from ui.device_model import build_device_mesh
@@ -42,31 +42,35 @@ class DeviceModelView(QWidget):
         self._faces = build_device_mesh(carriage, cap if enabled else None)
         self.update()
 
-    def _rotate(self, point):
-        x, y, z = point
-        y -= 167
-        a, b = radians(self.yaw), radians(self.pitch)
-        x, z = x*cos(a) + z*sin(a), -x*sin(a) + z*cos(a)
-        return x, y*cos(b) - z*sin(b), y*sin(b) + z*cos(b)
-
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.fillRect(self.rect(), QColor('#0c1627'))
+        background = QLinearGradient(0, 0, self.width(), self.height())
+        background.setColorAt(0, QColor("#162d3f"))
+        background.setColorAt(1, QColor("#0a1521"))
+        painter.fillRect(self.rect(), background)
         scale = min(self.width()/320, self.height()/430) * self.zoom
+        yaw, pitch = radians(self.yaw), radians(self.pitch)
+        cy, sy, cp, sp = cos(yaw), sin(yaw), cos(pitch), sin(pitch)
+
+        def rotate(point):
+            x, y, z = point
+            y -= 167
+            x, z = x * cy + z * sy, -x * sy + z * cy
+            return x, y * cp - z * sp, y * sp + z * cp
 
         def project(point):
             return QPointF(self.width()/2 + point[0]*scale,
                            self.height()/2 - point[1]*scale)
 
         # Draw the floor first; it is deliberately outside the equipment mesh.
-        painter.setPen(QPen(QColor('#1c3048'), 1))
+        painter.setPen(QPen(QColor("#294553"), 1))
         for offset in range(-140, 141, 28):
             for start, end in (((offset,-8,-140),(offset,-8,140)),
                                ((-140,-8,offset),(140,-8,offset))):
-                painter.drawLine(project(self._rotate(start)), project(self._rotate(end)))
+                painter.drawLine(project(rotate(start)), project(rotate(end)))
 
-        transformed = [(tuple(self._rotate(p) for p in points), color)
+        transformed = [(tuple(rotate(point) for point in points), color)
                        for points, color in self._faces]
         # Orthographic painter ordering is sufficient for these simple solid parts.
         transformed.sort(key=lambda face: sum(p[2] for p in face[0])/len(face[0]), reverse=True)

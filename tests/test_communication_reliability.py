@@ -96,7 +96,7 @@ class CommunicationReliabilityTests(unittest.TestCase):
         self.assertEqual(bytes(peer.readAll()), b"RPOS\r\n")
         peer.write(b"RPOS 12")
         peer.flush()
-        wait_until(lambda: bool(w._receive_buffers["TCP"]))
+        wait_until(lambda: bool(w._responses["TCP"].buffer))
         self.assertEqual(w.current_z_position_value.text(), "--")
         peer.write(b"345\r\nRPOS -67\r\n")
         peer.flush()
@@ -121,6 +121,14 @@ class CommunicationReliabilityTests(unittest.TestCase):
         self.assertEqual(w.current_z_position_value.text(), "--")
         w.command_client.received.emit(b"345\r\n")
         self.assertEqual(w.current_z_position_value.text(), "--")
+
+    def test_disconnect_while_processing_a_reply_discards_the_rest_of_its_chunk(self):
+        w = self.window
+        session = w.sessions["TCP"]
+        with patch.object(session, "receive", side_effect=lambda line: w.command_client.disconnected.emit()) as receive:
+            w.command_client.received.emit(b"RPOS 10\r\nRPOS 20\r\n")
+        receive.assert_called_once_with("RPOS 10")
+        self.assertNotIn("RX: RPOS 20", w.communication_log.toPlainText())
 
     def test_oversized_line_is_discarded_then_next_response_recovers(self):
         w = self.window

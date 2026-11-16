@@ -11,8 +11,6 @@ PHASE_NAMES = ("대기", "정지", "HOME", "DECAP", "CAP", "일시정지", "재�
                "R 상대 이동", "R 절대 이동", "Z 상대 이동", "Z 절대 이동",
                "Y Forward", "Y Back", "유닛 DECAP", "유닛 CAP", "Longrun",
                "Body 그리퍼", "Cap 그리퍼", "이상", "종료")
-ERROR_NAMES = {"E2800": "동작 시간 초과", "E2810": "이동 한계 초과",
-               "E2820": "Decapper 상태 오류"}
 RESULT_NAMES = ("기록 없음", "접수 / 실행", "완료 응답", "중단", "오류")
 
 

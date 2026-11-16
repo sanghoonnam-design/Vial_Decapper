@@ -1,6 +1,8 @@
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtSerialPort import QSerialPort
 
+from ui.command_wire import build_command_payload
+
 
 class SerialCommandClient(QObject):
     connected = Signal()
@@ -33,21 +35,14 @@ class SerialCommandClient(QObject):
         return self.serial.isOpen()
 
     def send_command(self, command: str, append_cr: bool, append_lf: bool) -> bytes:
-        if not command.strip():
-            self.error.emit("Cannot send an empty command.")
+        try:
+            payload = build_command_payload(command, append_cr, append_lf)
+        except ValueError as error:
+            self.error.emit(str(error))
             return b""
         if not self.is_connected():
             self.error.emit("Cannot send: UART port is not connected.")
             return b""
-        try:
-            payload = command.strip().encode("ascii")
-        except UnicodeEncodeError:
-            self.error.emit("Commands must use ASCII characters.")
-            return b""
-        if append_cr:
-            payload += b"\r"
-        if append_lf:
-            payload += b"\n"
         written = self.serial.write(payload)
         if written != len(payload):
             self.error.emit(f"UART write failed or incomplete ({written}/{len(payload)} bytes): {self.serial.errorString()}")
